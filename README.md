@@ -1,4 +1,28 @@
 # Zhaojian-A-Multimodal-Agent-for-Daily-Mind-Body-State
+
+## 启动当前版本
+
+在 Windows 上双击 `启动照见.cmd`，也可以运行 `python server.py --demo` 后打开 `http://127.0.0.1:8767`。首页可分别注册学生、管理和运营账号。学生可写心情手记、开始一分钟行动并生成当天规划；老师可邀请学生入班，在单独授权后查看趋势。请区分共用体验账号与自己注册的账号。
+
+**Windows 桌面小照**　学生登录后点网页右下角的小照，再点「放到桌面」。桌面上会出现一个独立的透明置顶小照。按住可以拖动，轻点打开聊天；最小化浏览器后仍然可用。右键小照可以退出。使用期间保持照见本地服务运行。
+
+新电脑请先用 `python -m pip install -r requirements.txt` 安装依赖。需要本地文字及图片模型时执行 `python setup_local_ai.py`。开发电脑已经装好模型。
+
+工作流程、模型安装和复验步骤见 [交互与本机 AI 版开发记录](./交互与本机AI版开发记录.md)。早期校园功能的开发记录见 [首版开发与验收](./首版开发与验收.md)。
+
+## 给老师或队友分享网页演示
+
+1. 将当前代码推送到 GitHub，在仓库页面选中包含 `server.py` 和 `web/` 的分支，点 **Code → Codespaces → Create codespace**。
+2. 在 Codespace 终端运行下面两行。演示账号和记录放在这个云端工作区里，请用虚构资料体验。
+
+   ```bash
+   python -m pip install -r requirements.txt
+   python server.py --demo --port 8767
+   ```
+
+3. 在终端旁的 **Ports（端口）** 找到 `8767`。如果列表为空，点 **Add Port** 并输入 `8767`。右键该端口，选择 **Port Visibility → Public**，复制 **Forwarded Address** 发给体验者。有链接的人都能打开。可先用无痕窗口登录学生体验账号，检查打卡和网页小照。
+4. 演示结束后停止 Codespace，体验链接会随之暂停。网页小照可在访客浏览器中使用；独立 Windows 桌宠需要在访客电脑上运行照见，本机模型也需要在运行后端的机器上另行配置。
+
 # 照见 Zhaojian
 
 > **Zhaojian: A Multimodal Agent for Daily Mind-Body State**  

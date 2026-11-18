@@ -1,0 +1,7 @@
+export function mountInputs(root){
+ const section=document.createElement('section');section.className='card';section.style.marginTop='16px';root.append(section);
+ section.innerHTML='<h2>语音速记</h2><p>使用本机中文听写，可编辑文字后复制到手记或桌宠。</p><button data-listen>开始本机听写</button> <button data-stop hidden>停止</button><label>速记稿<textarea data-text></textarea></label><p role="status" data-vmsg></p>';
+ const el=s=>section.querySelector(s);
+ const begin=el('[data-listen]'),stop=el('[data-stop]');let recognition=null;begin.onclick=async()=>{const Speech=window.SpeechRecognition||window.webkitSpeechRecognition;const msg=el('[data-vmsg]');if(!Speech){msg.textContent='此浏览器未提供本机听写，可直接输入文字。';return;}recognition=new Speech();if(!('processLocally' in recognition)){msg.textContent='此浏览器未提供本机中文识别，可直接输入文字。';recognition=null;return;}recognition.processLocally=true;recognition.lang='zh-CN';recognition.continuous=false;recognition.onresult=e=>{el('[data-text]').value+=e.results[0][0].transcript;};recognition.onerror=()=>msg.textContent='本机识别未能完成，请检查语言包或直接输入。';recognition.onend=()=>{begin.disabled=false;stop.hidden=true;};stop.onclick=()=>recognition?.stop();try{recognition.start();begin.disabled=true;stop.hidden=false;msg.textContent='正在本机听写…';}catch{msg.textContent='本机识别不可用，可直接输入。';}};
+ const observer=new MutationObserver(()=>{if(!section.isConnected){recognition?.abort();observer.disconnect();}});observer.observe(document.querySelector('#app'),{childList:true,subtree:true});
+}
