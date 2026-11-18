@@ -1,11 +1,12 @@
 # Zhaojian-A-Multimodal-Agent-for-Daily-Mind-Body-State
 
-## 运行首版
+## 启动当前版本
 
-在 Windows 中双击同目录的 `启动照见.cmd`，或在终端运行 `python server.py --demo`。浏览器打开 `http://127.0.0.1:8765`。需要 Python 3.10 或更高版本，核心功能使用标准库。
+在 Windows 上双击 `启动照见.cmd`，也可以运行 `python server.py --demo` 后打开 `http://127.0.0.1:8765`。首页可分别注册学生、管理和运营账号。请区分共用体验账号与自己注册的账号。
 
-学生、校园、管理及运营功能的体验路线、实际开发流程、验收命令和首版边界见 [首版开发与验收](./首版开发与验收.md)。
+新电脑请先用 `python -m pip install -r requirements.txt` 安装依赖。需要本地文字及图片模型时执行 `python setup_local_ai.py`。开发电脑已经装好模型。
 
+工作流程、模型安装和复验步骤见 [交互与本机 AI 版开发记录](./交互与本机AI版开发记录.md)。早期校园功能的开发记录见 [首版开发与验收](./首版开发与验收.md)。
 
 # 照见 Zhaojian
 

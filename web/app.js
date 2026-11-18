@@ -1,3 +1,6 @@
+import {renderAuth} from './auth.js';
+import {renderJournal} from './journal.js';
+import {mountPet} from './pet.js';
 import {renderOps} from './ops.js';
 import {renderData} from './data.js';
 import {renderStudent} from './student.js';
@@ -12,23 +15,24 @@ async function api(path,data){
   if(!response.ok){if(response.status===401 && user){user=null;loginPage();}throw new Error(result.error||'请求失败');}
   return result;
 }
-const brand='<span class="brandmark" aria-hidden="true">☀</span><span>照见<small>ZHAOJIAN</small></span>';
-const pet='<div class="mascot" aria-hidden="true"><i></i><b></b><span></span></div>';
+const art={sun:'<circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2.2 2.2m11.6 11.6L20 20M4 20l2.2-2.2M17.8 6.2 20 4"/>',student:'<path d="m3 11 9-8 9 8v9H3z"/><path d="M9 20v-7h6v7"/>',journal:'<rect x="2" y="6" width="20" height="15" rx="3"/><path d="m6 6 2-3h7l2 3"/><circle cx="12" cy="13" r="4"/>',campus:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 10h18m-14 4h3m3 0h3"/>',sharing:'<path d="M4 5h16v12h-9l-5 4v-4H4z"/><path d="M8 9h8m-8 4h5"/>',privacy:'<rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/>',data:'<path d="M3 12h4l2-6 4 12 2-6h6"/>',ops:'<path d="M5 4h14v16H5zM8 9h8m-8 4h8m-8 4h5"/>',manage:'<path d="M3 20h18M5 17v-6h3v6m3 0V4h3v13m3 0v-9h3v9"/>',publish:'<path d="m3 10 14-5v14L3 14zm3 5 2 5h3l-2-5m11-6 2-1"/>'};
+const icon=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${art[k]}</svg>`;
+const brand=`<span class="brandmark">${icon('sun')}</span><span>照见<small>ZHAOJIAN</small></span>`;
+const roleTitle={student:'学生空间',manager:'管理空间',operator:'运营空间'};
+const pages={student:['今日',renderStudent],journal:['照一照 · 心情手记',renderJournal],campus:['校园日程',renderCampus],sharing:['求助与共享',renderSharing],privacy:['经期与授权',renderPrivacy],data:['设备与数据',renderData],ops:['行动库',renderOps],manage:['管理工作台',renderManager],publish:['校园公告',renderCampusAdmin]};
+let petOwner=null;
 function loginPage(){
-  app.innerHTML=`<div class="entry"><header class="brand">${brand}</header><main class="welcome"><section class="poster"><div class="poster-title"><h1>给今天的自己，<br>留一点空隙。</h1><p>记录近况，整理课表，和桌宠一起迈出一小步。</p></div><div class="horizon"></div>${pet}<div class="poster-foot">照见 · 校园日常陪伴</div></section><section class="login card"><h2>欢迎来到照见</h2><p>登录后进入自己的工作区。</p><form id="signin"><label>账号<input name="username" autocomplete="username" required></label><label>密码<input name="password" type="password" autocomplete="current-password" required></label><button class="primary">登录</button></form><div id="login-error" class="error" role="alert"></div>${demo?'<div class="demobox"><strong>用虚构账号体验</strong><div class="demochoices"><button data-demo="lin">学生体验 ↗</button><button data-demo="chen">管理体验 ↗</button><button data-demo="ops">运营体验 ↗</button></div><small>体验账号共用，请只填写虚构信息。</small></div>':''}</section></main></div>`;
-  async function login(data){try{const result=await api('/api/login',data);user=result.user;location.hash=user.role==='operator'?'ops':user.role==='manager'?'manage':'student';await render();}catch(e){const box=document.querySelector('#login-error');if(box)box.textContent=e.message;}}
-  document.querySelector('#signin').onsubmit=e=>{e.preventDefault();login(Object.fromEntries(new FormData(e.target)));};
-  app.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>login({username:b.dataset.demo,password:'ZhaojianDemo1'}));
+  document.querySelector('#pet-layer')?.replaceChildren();petOwner=null;
+  renderAuth(app,{api,demo,brand,onLogin:async logged=>{user=logged;const first={operator:'ops',manager:'manage',student:'student'}[user.role];history.replaceState(null,'','#'+first);await render();}});
 }
-const pages={ops:['行动库','▤',renderOps],publish:['校园公告','▦',renderCampusAdmin],data:['设备与数据','▧',renderData],student:['学生工作台','◉',renderStudent],campus:['校园日程','▦',renderCampus],sharing:['求助与共享','◇',renderSharing],privacy:['经期与授权','◌',renderPrivacy],manage:['管理工作台','▤',renderManager]};
 async function render(){
   if(!user){loginPage();return;}
   const ticket=++generation;
-  const keys=user.role==='operator'?['ops']:user.role==='manager'?['manage','publish']:['student','campus','sharing','privacy','data'];
+  const keys=user.role==='operator'?['ops']:user.role==='manager'?['manage','publish']:['student','journal','campus','sharing','privacy','data'];
   const selected=keys.includes(location.hash.slice(1))?location.hash.slice(1):keys[0];
-  app.innerHTML=`<div class="shell"><aside><div class="brand">${brand}</div><nav aria-label="工作区">${keys.map(k=>`<a href="#${k}" ${k===selected?'aria-current="page"':''}><span aria-hidden="true">${pages[k][1]}</span>${pages[k][0]}</a>`).join('')}</nav><div class="account"><div><strong>${escape(user.name)}</strong><small>${escape(user.cohort)} · ${user.role==='operator'?'运营端':user.role==='manager'?'管理端':'学生'}</small></div><button id="logout">退出</button></div></aside><main class="workspace"><div id="view" aria-live="polite"></div></main></div>`;
+  app.innerHTML=`<div class="shell"><aside><div class="brand">${brand}</div><nav aria-label="工作区">${keys.map(k=>`<a href="#${k}" ${k===selected?'aria-current="page"':''}>${icon(k)}${pages[k][0]}</a>`).join('')}</nav><div class="account"><div><strong>${escape(user.name)}</strong><small>${escape(user.cohort)} · ${user.role==='operator'?'运营端':user.role==='manager'?'管理端':'学生'}</small></div><button id="logout">退出</button></div></aside><main class="workspace"><div class="workspace-head"><span>${roleTitle[user.role]}　/　<b>${pages[selected][0]}</b></span><time>${new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'long'})}</time></div><div id="view" aria-live="polite"></div></main></div>`;
   document.querySelector('#logout').onclick=async()=>{try{await api('/api/logout',{});user=null;location.hash='';loginPage();}catch(e){alert(e.message);}};
-  const root=document.querySelector('#view');try{await pages[selected][2](root,{api,escape,user,refresh:()=>ticket===generation?render():Promise.resolve(),navigate:k=>{location.hash=k;}});}catch(e){if(ticket===generation&&user){root.innerHTML=`<section class="card"><h2>暂时无法打开这一页</h2><p>${escape(e.message)}</p><button>重新加载</button></section>`;root.querySelector('button').onclick=render;}}
+  const root=document.querySelector('#view');const ctx={api,escape,user,refresh:()=>ticket===generation?render():Promise.resolve(),navigate:k=>{location.hash=k;}};const layer=document.querySelector('#pet-layer');if(user.role==='student'&&petOwner!==user.id){petOwner=user.id;const mount=document.createElement('div');layer.replaceChildren(mount);mountPet(mount,ctx).catch(()=>{petOwner=null;});}else if(user.role!=='student'){layer.replaceChildren();petOwner=null;}try{await pages[selected][1](root,ctx);}catch(e){if(ticket===generation&&user){root.innerHTML=`<section class="card"><h2>暂时无法打开这一页</h2><p>${escape(e.message)}</p><button>重新加载</button></section>`;root.querySelector('button').onclick=render;}}
 }
 window.addEventListener('hashchange',render);
 try{const session=await api('/api/session');user=session.user;demo=session.demo;await render();}catch(e){app.textContent='无法连接照见服务，请确认启动窗口仍在运行后刷新。';}

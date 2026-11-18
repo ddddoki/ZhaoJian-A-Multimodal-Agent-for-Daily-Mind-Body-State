@@ -1,10 +1,8 @@
 """Local first edition of Zhaojian. Run python server.py --demo."""
 import argparse
 import hashlib
-import hmac
 import json
 import mimetypes
-import os
 from pathlib import Path
 import secrets
 import sqlite3
@@ -18,16 +16,17 @@ import campus
 import manager
 import personal
 import ops
+import journal
+import pet
+import companion_ai
+import registration
+from registration import password_hash
 
 ROOT = Path(__file__).resolve().parent
 WEB = ROOT / 'web'
-MODULES = (student, campus, manager, personal, ops)
+MODULES = (student, campus, manager, personal, ops, journal, pet, companion_ai)
 PUBLIC_FIELDS = ('id', 'username', 'name', 'role', 'cohort')
 DEMO_USERS = [('lin', '林同学', 'student', '软件一班'), ('zhou', '周同学', 'student', '软件二班'), ('chen', '陈老师', 'manager', '软件一班'), ('wu', '吴老师', 'manager', '软件二班'), ('ops', '运营体验员', 'operator', '软件一班')]
-
-
-def password_hash(password, salt):
-    return hashlib.pbkdf2_hmac('sha256', password.encode(), bytes.fromhex(salt), 300000).hex()
 
 
 def connect(file):
@@ -45,6 +44,7 @@ def setup(file, demo):
             db.execute('PRAGMA journal_mode=WAL')
             db.executescript('''CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, cohort TEXT NOT NULL, salt TEXT NOT NULL, password_hash TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, expires INTEGER NOT NULL);''')
+            registration.init(db)
             for module in MODULES:
                 module.init(db)
             if demo:
@@ -89,15 +89,17 @@ class Handler(BaseHTTPRequestHandler):
         origin=self.headers.get('Origin')
         if origin and urlsplit(origin).netloc!=self.headers.get('Host'):
             return self.reply(403,{'error':'请求来源无效'})
+        path = urlsplit(self.path).path
+        max_mb = 8 if path == '/api/journal/save' else 1
         try:
             size=int(self.headers.get('Content-Length',0))
-            if size<0 or size>1024*1024 or self.headers.get_content_type()!='application/json':
+            if size<0 or size>max_mb*1024*1024 or self.headers.get_content_type()!='application/json':
                 raise ValueError
             data=json.loads(self.rfile.read(size))
             if not isinstance(data,dict): raise ValueError
         except (UnicodeError,ValueError):
-            return self.reply(400,{'error':'请提交有效的 JSON 数据，大小不超过 1 MB'})
-        self.api('POST',urlsplit(self.path).path,data)
+            return self.reply(400,{'error':f'请提交有效的 JSON 数据，大小不超过 {max_mb} MB'})
+        self.api('POST',path,data)
 
     def api(self, method, path, data):
         db=connect(self.server.dbfile)
@@ -123,16 +125,18 @@ class Handler(BaseHTTPRequestHandler):
         user=db.execute('SELECT u.* FROM users u JOIN sessions s ON u.id=s.user_id WHERE s.token=? AND s.expires>?',(digest,time.time())).fetchone()
         if path=='/api/session' and method=='GET':
             return {'user':public_user(user) if user else None,'demo':self.server.demo},200,None
-        if path=='/api/login' and method=='POST':
-            username=data.get('username');password=data.get('password')
-            if not isinstance(username,str) or not isinstance(password,str) or len(password)>256: raise ValueError('请填写账号和密码')
-            row=db.execute('SELECT * FROM users WHERE username=?',(username.strip(),)).fetchone()
-            if row is None or not hmac.compare_digest(password_hash(password,row['salt']),row['password_hash']):
-                return {'error':'账号或密码不正确'},401,None
-            db.execute('DELETE FROM sessions WHERE expires<=? OR token=?',(time.time(),digest))
-            new=secrets.token_urlsafe(32)
-            db.execute('INSERT INTO sessions VALUES(?,?,?)',(hashlib.sha256(new.encode()).hexdigest(),row['id'],int(time.time())+43200))
-            return {'user':public_user(row)},200,f'zj_session={new}; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200'
+        if path == '/api/demo/invite' and method == 'POST':
+            if not self.server.demo:
+                raise PermissionError('仅演示库开放体验邀请')
+            return registration.issue_invite(db, data.get('role'), '软件一班', hours=1, demo=True),200,None
+        if path == '/api/register' and method == 'POST':
+            row = registration.register(db, data, self.server.demo)
+            return {'user':public_user(row)},201,registration.session_cookie(db, row['id'], digest)
+        if path == '/api/login' and method == 'POST':
+            row = registration.authenticate(db, data)
+            if row is None:
+                return {'error':'身份、账号或密码不正确'},401,None
+            return {'user':public_user(row)},200,registration.session_cookie(db, row['id'], digest)
         if path=='/api/logout' and method=='POST':
             db.execute('DELETE FROM sessions WHERE token=?',(digest,))
             return {'ok':True},200,'zj_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'

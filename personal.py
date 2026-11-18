@@ -4,7 +4,7 @@ import io
 import math
 from datetime import datetime, timezone
 
-PERSONAL={'student_experiments':'user_id','snapshots':'user_id','student_actions':'user_id','student_cards':'user_id','student_memories':'user_id','student_observations':'user_id','campus_events':'owner','campus_preferences':'owner','cycle_entries':'owner','cycle_consent':'owner','support_shares':'student','wearable_connections':'owner'}
+PERSONAL={'journal_entries':'owner','pet_turns':'user_id','pet_states':'user_id','student_experiments':'user_id','snapshots':'user_id','student_actions':'user_id','student_cards':'user_id','student_memories':'user_id','student_observations':'user_id','campus_events':'owner','campus_preferences':'owner','cycle_entries':'owner','cycle_consent':'owner','support_shares':'student','wearable_connections':'owner'}
 METRICS={'heart_rate':('心率（次/分）',20,300),'steps':('步数（步）',0,100000),'sleep_hours':('睡眠（小时）',0,24),'hrv_ms':('HRV（毫秒）',0,1000)}
 
 
