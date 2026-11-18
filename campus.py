@@ -220,7 +220,11 @@ def store_cycle(db,owner,start,end,feeling):
 
 
 def cycle(db,owner,method,path,data):
-    if method=='POST' and not db.in_transaction: db.execute('BEGIN IMMEDIATE')
+    if not db.in_transaction:
+        db.execute('BEGIN IMMEDIATE' if method == 'POST' else 'BEGIN')
+    person = db.execute("SELECT gender FROM users WHERE id=? AND role='student'", (owner,)).fetchone()
+    if not person or person[0] != 'female':
+        raise PermissionError('经期功能仅对已选择女生的学生本人开放')
     consent=db.execute('SELECT personalize FROM cycle_consent WHERE owner=?',(owner,)).fetchone()
     if path=='/api/privacy' and method=='GET':
         entries=[dict(r) for r in db.execute('SELECT id,start_day,end_day,feeling FROM cycle_entries WHERE owner=? ORDER BY start_day DESC',(owner,))] if consent else []

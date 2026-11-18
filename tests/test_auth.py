@@ -45,7 +45,7 @@ class RegistrationTest(unittest.TestCase):
             return result
 
     def draft(self,role='student',username='local.student'):
-        return dict(username=username,name='测试用户',cohort='学生自填班级',password='test-password-1234',role=role)
+        return dict(username=username,name='测试用户',cohort='学生自填班级',password='test-password-1234',role=role,**({'gender':'female'} if role=='student' else {}))
 
     def issue(self,role):
         db=server.connect(self.file)
@@ -107,3 +107,58 @@ class RegistrationTest(unittest.TestCase):
                 with exc:return exc.status
         with ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(sorted(pool.map(apply,(1,2))),[201,400])
+
+    def test_gender_is_required_personal_and_independent_from_cycle_consent(self):
+        original=self.draft()
+        for bad in (None, 'unknown', '', [], 1):
+            self.call('/api/register',{**original, 'gender':bad},400)
+        self.call('/api/register',{k:v for k,v in original.items() if k!='gender'},400)
+        user=self.call('/api/register',original,201)['user']
+        self.assertEqual((user['gender'],user['cohort']),('female',''))
+        self.assertFalse(self.call('/api/privacy')['enabled'])
+        self.call('/api/privacy/save',{'start_day':'2024-01-01'},403)
+        self.call('/api/privacy/consent',{'enabled':True})
+        self.call('/api/privacy/save',{'start_day':'2024-01-01','feeling':'私人测试'},200)
+        self.call('/api/profile/gender',{'gender':'male'})
+        self.assertEqual(self.call('/api/session')['user']['gender'],'male')
+        self.call('/api/privacy',status=403)
+        for path, data in (('consent',{'enabled':True}),('save',{}),('personalize',{'enabled':True}),
+                           ('import/preview',{}),('import/confirm',{}),('delete',{'id':1})):
+            self.call('/api/privacy/'+path,data,403)
+        self.assertTrue(self.call('/api/profile')['has_cycle_history'])
+        self.assertFalse(self.call('/api/data/export').get('cycle_entries'))
+        self.call('/api/profile/gender',{'gender':'female'})
+        self.assertFalse(self.call('/api/privacy')['enabled'])
+        self.call('/api/privacy/consent',{'enabled':True})
+        self.assertEqual(self.call('/api/privacy')['entries'][0]['feeling'],'私人测试')
+        self.call('/api/profile/gender',{'gender':'male'})
+        self.call('/api/profile/clear-cycle',{'confirm':True})
+        self.assertFalse(self.call('/api/profile')['has_cycle_history'])
+        token=self.issue('manager')
+        staff=self.call('/api/register',{**self.draft('manager','teacher.gender'),'gender':'female','invite':token},201)['user']
+        self.assertNotIn('gender',staff)
+        self.call('/api/profile',status=403)
+        self.call('/api/privacy',status=403)
+
+    def test_legacy_profile_completion_preserves_original_data(self):
+        import sqlite3
+        legacy=Path(self.temp.name)/'legacy.db'
+        db=sqlite3.connect(legacy)
+        db.execute('CREATE TABLE users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, cohort TEXT NOT NULL, salt TEXT NOT NULL, password_hash TEXT NOT NULL)')
+        db.execute("INSERT INTO users VALUES(1,'old','原账号','student','软件一班','00',?)",
+                   (registration.password_hash('legacy-pass','00'),))
+        db.commit();db.close()
+        server.setup(legacy,False)
+        self.http.dbfile=legacy
+        account=self.call('/api/login',{'username':'old','password':'legacy-pass'})['user']
+        self.assertIsNone(account['gender'])
+        self.call('/api/privacy',status=403)
+        db=server.connect(legacy)
+        with db:
+            db.execute("INSERT INTO cycle_consent(owner,personalize) VALUES(1,1)")
+            db.execute("INSERT INTO cycle_entries(owner,start_day,end_day,feeling) VALUES(1,'2024-01-01','','旧记录')")
+        db.close()
+        self.call('/api/profile/gender',{'gender':'female'})
+        self.assertFalse(self.call('/api/privacy')['enabled'])
+        self.call('/api/privacy/consent',{'enabled':True})
+        self.assertEqual(self.call('/api/privacy')['entries'][0]['feeling'],'旧记录')

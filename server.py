@@ -20,11 +20,13 @@ import journal
 import pet
 import companion_ai
 import registration
+import care
+import planner
 from registration import password_hash
 
 ROOT = Path(__file__).resolve().parent
 WEB = ROOT / 'web'
-MODULES = (student, campus, manager, personal, ops, journal, pet, companion_ai)
+MODULES = (student, campus, manager, personal, ops, journal, pet, companion_ai, care, planner)
 PUBLIC_FIELDS = ('id', 'username', 'name', 'role', 'cohort')
 DEMO_USERS = [('lin', '林同学', 'student', '软件一班'), ('zhou', '周同学', 'student', '软件二班'), ('chen', '陈老师', 'manager', '软件一班'), ('wu', '吴老师', 'manager', '软件二班'), ('ops', '运营体验员', 'operator', '软件一班')]
 
@@ -44,20 +46,30 @@ def setup(file, demo):
             db.execute('PRAGMA journal_mode=WAL')
             db.executescript('''CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, cohort TEXT NOT NULL, salt TEXT NOT NULL, password_hash TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, expires INTEGER NOT NULL);''')
-            registration.init(db)
+            migrated = registration.init(db)
             for module in MODULES:
                 module.init(db)
             if demo:
                 for username, name, role, cohort in DEMO_USERS:
-                    if not db.execute('SELECT 1 FROM users WHERE username=?',(username,)).fetchone():
+                    gender = {'lin': 'female', 'zhou': 'male'}.get(username)
+                    existing = db.execute('SELECT * FROM users WHERE username=?', (username,)).fetchone()
+                    if existing is None:
                         salt=secrets.token_hex(16)
-                        db.execute('INSERT INTO users(username,name,role,cohort,salt,password_hash) VALUES(?,?,?,?,?,?)',(username,name,role,cohort,salt,password_hash('ZhaojianDemo1',salt)))
+                        db.execute('INSERT INTO users(username,name,role,cohort,salt,password_hash,gender) VALUES(?,?,?,?,?,?,?)',
+                                   (username,name,role,cohort,salt,password_hash('ZhaojianDemo1',salt),gender))
+                    elif migrated and gender and (existing['role'],existing['name']) == ('student',name):
+                        # Only update known fictional accounts in an existing demo database.
+                        if existing['password_hash'] == password_hash('ZhaojianDemo1',existing['salt']):
+                            db.execute('UPDATE users SET gender=? WHERE id=?', (gender,existing['id']))
     finally:
         db.close()
 
 
 def public_user(row):
-    return {key:row[key] for key in PUBLIC_FIELDS}
+    result = {key:row[key] for key in PUBLIC_FIELDS}
+    if row['role'] == 'student':
+        result['gender'] = row['gender']
+    return result
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -141,6 +153,8 @@ class Handler(BaseHTTPRequestHandler):
             db.execute('DELETE FROM sessions WHERE token=?',(digest,))
             return {'ok':True},200,'zj_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'
         if user is None:return {'error':'请先登录'},401,None
+        if (method == 'GET' and path == '/api/profile') or (method == 'POST' and path in ('/api/profile/gender','/api/profile/clear-cycle')):
+            return registration.profile(db, user, path, data),200,None
         for module in MODULES:
             result=module.handle(db,public_user(user),method,path,data)
             if result is not NotImplemented:return result,200,None

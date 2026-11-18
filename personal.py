@@ -4,7 +4,7 @@ import io
 import math
 from datetime import datetime, timezone
 
-PERSONAL={'journal_entries':'owner','pet_turns':'user_id','pet_states':'user_id','student_experiments':'user_id','snapshots':'user_id','student_actions':'user_id','student_cards':'user_id','student_memories':'user_id','student_observations':'user_id','campus_events':'owner','campus_preferences':'owner','cycle_entries':'owner','cycle_consent':'owner','support_shares':'student','wearable_connections':'owner'}
+PERSONAL={'minute_sessions':'owner','plan_items':'owner','care_invitations':'student','care_grants':'student','care_events':'student','journal_entries':'owner','pet_turns':'user_id','pet_states':'user_id','student_experiments':'user_id','snapshots':'user_id','student_actions':'user_id','student_cards':'user_id','student_memories':'user_id','student_observations':'user_id','campus_events':'owner','campus_preferences':'owner','cycle_entries':'owner','cycle_consent':'owner','support_shares':'student','wearable_connections':'owner'}
 METRICS={'heart_rate':('心率（次/分）',20,300),'steps':('步数（步）',0,100000),'sleep_hours':('睡眠（小时）',0,24),'hrv_ms':('HRV（毫秒）',0,1000)}
 
 
@@ -34,7 +34,18 @@ def handle(db,user,method,path,data):
     if user['role']!='student':raise PermissionError('仅学生本人可用')
     uid=user['id'];op=path.removeprefix('/api/data/')
     if method=='GET' and op=='export':
-        return {table:[dict(r) for r in db.execute(f'SELECT * FROM {table} WHERE {owner}=?',(uid,))] for table,owner in PERSONAL.items()}
+        # Read authorization and export from one snapshot, including legacy accounts.
+        if not db.in_transaction:
+            db.execute('BEGIN')
+        cycle_allowed = db.execute(
+            "SELECT 1 FROM users u JOIN cycle_consent c ON c.owner=u.id WHERE u.id=? AND u.gender='female'",
+            (uid,),
+        ).fetchone() is not None
+        return {
+            table: [dict(row) for row in db.execute(f'SELECT * FROM {table} WHERE {owner}=?', (uid,))]
+            for table, owner in PERSONAL.items()
+            if cycle_allowed or table not in ('cycle_entries', 'cycle_consent')
+        }
     if method=='POST' and op=='clear':
         if data.get('confirm')!='清空我的数据':raise ValueError('请输入确认用语')
         for table,owner in PERSONAL.items():db.execute(f'DELETE FROM {table} WHERE {owner}=?',(uid,))

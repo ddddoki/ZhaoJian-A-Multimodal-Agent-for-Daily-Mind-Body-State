@@ -4,7 +4,7 @@ from getpass import getpass
 from pathlib import Path
 import secrets
 import sys
-from registration import STAFF, field, issue_invite
+from registration import STAFF, STUDENT_GENDERS, field, issue_invite
 from server import ROOT, connect, setup, password_hash
 
 
@@ -14,6 +14,7 @@ def main():
     if legacy:
         parser.add_argument('username')
         parser.add_argument('name')
+        parser.add_argument('--gender', choices=STUDENT_GENDERS, help='学生资料：female 女生，male 男生')
     parser.add_argument('cohort')
     parser.add_argument('--db', type=Path, default=ROOT/'.local'/'app.sqlite3')
     parser.add_argument('--role', choices=['student',*STAFF] if legacy else STAFF, default='student' if legacy else None, required=not legacy)
@@ -30,14 +31,22 @@ def main():
                 print(f"一次性邀请码：{invite['invite']}")
                 return
             username, name, cohort = (field(v,k) for v,k in [(args.username,'账号'),(args.name,'姓名'),(args.cohort,'班级')])
+            gender = None
+            if args.role == 'student':
+                gender = args.gender or input('学生性别（女／男）：').strip()
+                gender = {'女':'female','女生':'female','男':'male','男生':'male'}.get(gender,gender)
+                if gender not in STUDENT_GENDERS:
+                    parser.error('创建学生账号需要选择女生或男生')
+            elif args.gender:
+                parser.error('只有学生账号可设置性别')
             password = getpass('请输入密码（至少 10 个字符）：')
             if not 10 <= len(password) <= 256 or password != getpass('再次输入密码：'):
                 parser.error('密码长度不符或两次密码不同')
             if db.execute('SELECT 1 FROM users WHERE username=?',(username,)).fetchone():
                 parser.error('账号已存在')
             salt = secrets.token_hex(16)
-            db.execute('INSERT INTO users(username,name,role,cohort,salt,password_hash) VALUES(?,?,?,?,?,?)',
-                       (username, name, args.role, cohort, salt, password_hash(password,salt)))
+            db.execute('INSERT INTO users(username,name,role,cohort,salt,password_hash,gender) VALUES(?,?,?,?,?,?,?)',
+                       (username, name, args.role, cohort, salt, password_hash(password,salt),gender))
     except ValueError as exc:
         parser.error(str(exc))
     finally:

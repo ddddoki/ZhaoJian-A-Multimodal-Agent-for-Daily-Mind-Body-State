@@ -37,9 +37,10 @@ export function renderAuth(root,{api,demo,onLogin,brand}){
       <div class="za-roles" role="group" aria-label="选择账号身份">${Object.entries(profiles).map(([value,info])=>`<button type="button" aria-pressed="${value===role}" data-role="${value}">${info.name}端</button>`).join('')}</div>
       <form class="za-form" id="${signup?'signup':'signin'}">
       ${signup?`<label>${person.display}<input name="name" maxlength="60" autocomplete="name" placeholder="${staff?'填写姓名':'填写称呼或昵称'}" required></label>`:''}
+      ${signup&&!staff?`<fieldset class="za-gender"><legend>性别</legend><div><label><input type="radio" name="gender" value="female" required>女生</label><label><input type="radio" name="gender" value="male" required>男生</label></div><small>仅自己可见，可在个人资料中更正。</small></fieldset>`:''}
       <label>账号<input name="username" autocomplete="username" spellcheck="false" ${signup?'pattern="[A-Za-z0-9_.\\-]{3,40}" maxlength="40" minlength="3" title="3 至 40 个英文字母、数字、点、短横线或下划线" placeholder="3–40 个英文字母、数字或符号"':'placeholder="输入你的账号"'} required></label>
       <label>密码<input type="password" name="password" autocomplete="${signup?'new-password':'current-password'}" maxlength="256" ${signup?'minlength="10" placeholder="设置至少 10 位密码"':'placeholder="输入密码"'} required></label>
-      ${signup&&!staff?'<label>班级<input name="cohort" maxlength="60" placeholder="例如：软件一班" required></label>':''}
+      ${signup&&!staff?'<small>注册后可在班级页面查看并接受老师的入班邀请。</small>':''}
       ${signup&&staff?`<div class="za-invite"><label>${person.name}邀请码<input name="invite" maxlength="128" autocomplete="off" aria-describedby="za-invite-hint" placeholder="输入一次性邀请码" required></label><small id="za-invite-hint">邀请码由项目负责人签发，注册后自动加入对应班级。</small>${demo?'<button class="za-link" type="button" data-invite>填入演示邀请码</button>':''}</div>`:''}
       <div class="za-error" role="alert" tabindex="-1"></div>
       <button class="za-submit" type="submit">${signup?'注册并进入'+person.name+'端':'登录'+person.name+'端'} <span aria-hidden="true">↗</span></button></form>

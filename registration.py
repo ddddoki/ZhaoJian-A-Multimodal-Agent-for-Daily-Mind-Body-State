@@ -7,13 +7,49 @@ import time
 
 ROLES = ('student', 'manager', 'operator')
 STAFF = ('manager', 'operator')
+STUDENT_GENDERS = ('female', 'male')
 
 
 def init(db):
+    if not db.in_transaction:
+        db.execute('BEGIN IMMEDIATE')
+    migrated = 'gender' not in {r[1] for r in db.execute('PRAGMA table_info(users)')}
+    if migrated:
+        db.execute("ALTER TABLE users ADD COLUMN gender TEXT CHECK(gender IN ('female','male') OR gender IS NULL)")
     db.execute("""CREATE TABLE IF NOT EXISTS invitations (
         digest TEXT PRIMARY KEY, role TEXT NOT NULL, cohort TEXT NOT NULL,
         expires INTEGER NOT NULL, used_by INTEGER REFERENCES users(id),
         demo INTEGER NOT NULL DEFAULT 0)""")
+    return migrated
+
+
+def student_gender(value):
+    if value not in STUDENT_GENDERS:
+        raise ValueError('请选择女生或男生')
+    return value
+
+
+def profile(db, user, path, data):
+    if user['role'] != 'student':
+        raise PermissionError('此项设置仅限学生本人')
+    if path == '/api/profile':
+        has_history = db.execute(
+            'SELECT EXISTS(SELECT 1 FROM cycle_entries WHERE owner=?) OR EXISTS(SELECT 1 FROM cycle_consent WHERE owner=?)',
+            (user['id'],user['id'])).fetchone()[0]
+        return {'has_cycle_history': bool(has_history)}
+    if path == '/api/profile/gender':
+        value = student_gender(data.get('gender'))
+        changed = db.execute('UPDATE users SET gender=? WHERE id=? AND gender IS NOT ?',
+                             (value, user['id'], value)).rowcount
+        if changed:
+            db.execute('DELETE FROM cycle_consent WHERE owner=?', (user['id'],))
+    elif path == '/api/profile/clear-cycle':
+        if data.get('confirm') is not True:
+            raise ValueError('请确认清除本人的历史记录')
+        db.execute('DELETE FROM cycle_consent WHERE owner=?', (user['id'],))
+        db.execute('DELETE FROM cycle_entries WHERE owner=?', (user['id'],))
+    return {'ok': True}
+
 
 
 def field(value, label, limit=60):
@@ -53,7 +89,9 @@ def register(db, data, demo):
     password = data.get('password')
     if not isinstance(password, str) or not 10 <= len(password) <= 256:
         raise ValueError('密码长度应为 10 至 256 个字符')
-    cohort = field(data.get('cohort'), '班级') if role == 'student' else None
+    # Student membership begins only after accepting a staff-issued class invitation.
+    cohort = ''
+    gender = student_gender(data.get('gender')) if role == 'student' else None
     invitation = signature(field(data.get('invite'), '邀请码', 128)) if role in STAFF else None
     salt = secrets.token_hex(16)
     derived = password_hash(password, salt)
@@ -66,8 +104,8 @@ def register(db, data, demo):
         cohort = row['cohort']
     if db.execute('SELECT 1 FROM users WHERE username=?', (username,)).fetchone():
         raise ValueError('该账号已被使用，请换一个账号')
-    user_id = db.execute('INSERT INTO users(username,name,role,cohort,salt,password_hash) VALUES(?,?,?,?,?,?)',
-                         (username, name, role, cohort, salt, derived)).lastrowid
+    user_id = db.execute('INSERT INTO users(username,name,role,cohort,salt,password_hash,gender) VALUES(?,?,?,?,?,?,?)',
+                         (username, name, role, cohort, salt, derived, gender)).lastrowid
     if invitation:
         db.execute('UPDATE invitations SET used_by=? WHERE digest=?', (user_id, invitation))
     return db.execute('SELECT * FROM users WHERE id=?', (user_id,)).fetchone()

@@ -31,7 +31,9 @@ export async function renderStudent(root,ctx) {
   if(!document.getElementById('student-style')){const style=document.createElement('style');style.id='student-style';style.textContent=css;document.head.append(style);}
   const {api,escape:esc}=ctx;
   const req=(path,data)=>api('/api/student/'+path,data);
-  let [state,campus,journal]=await Promise.all([req('overview'),api('/api/campus'),api('/api/journal')]);
+  let [state,campus,journal,dayPlan,classCare]=await Promise.all([
+    req('overview'), api('/api/campus'), api('/api/journal'), api('/api/plan'), api('/api/care/student')
+  ]);
   let offset=Date.now()/1000-state.now; let section='今日', dialog='', editing=null, clock;
   let actionKey=state.recommended, cardSource=null, status='';
   const button=(label,cmd,cls='',attrs='')=>`<button type="button" class="${cls}" data-cmd="${cmd}" ${attrs}>${label}</button>`;
@@ -54,13 +56,22 @@ export async function renderStudent(root,ctx) {
     }).join('');
     return `<details><summary>近期身体线索 · ${state.evidence.length} 项</summary><ul>${lines}</ul><p>身体线索另按采集时间展示。不同时间、活动和佩戴条件会影响读数；各维得分始终以你的自评为准。</p></details>`;
   }
+  function dayAtGlance(){
+    const stored=dayPlan.items.filter(item=>item.status==='planned');
+    const picks=(dayPlan.items.length?stored:dayPlan.suggested).slice(0,3);
+    const rows=picks.map(item=>`<li><time>${esc(item.time)}</time><div><strong>${esc(item.title)}</strong><small>${item.duration} 分钟${item.conflict?' · 与事务冲突':''}</small></div></li>`).join('');
+    const noItems=dayPlan.items.length?'今天已没有待办的规划项。':'今天的可用时段已排满或已结束。';
+    return `<section class="card glance"><header><h2>${dayPlan.items.length?'今天的规划':'今天可以这样安排'}</h2><a href="#plan">打开规划 ↗</a></header>
+      ${rows?`<ol>${rows}</ol>`:`<p>${noItems}</p>`}
+      <small>${dayPlan.items.length?'已保存的安排':picks.length?'建议时段，确认后加入今天':'可以从手记里选择一分钟行动'}</small></section>`;
+  }
   function today(){
     const snapshot=state.snapshots[0];
     const last=journal.entries.find(e=>e.state==='published') || journal.entries[0];
     const story=last?.story||last?.caption||'';
     const status=last?`<div class="zj-entry-preview">${last.words.map(w=>`<span>${esc(w)}</span>`).join('')}<blockquote>${story?esc(story.slice(0,110))+(story.length>110?'…':''):'留下一张照片，也是一种记录。'}</blockquote></div>`:empty('一张照片、几个词，或一段还没想清楚的话，都能成为第一篇手记。');
     const quick=`<details class="zj-quick"><summary>身体线索与快速自评</summary>${evidence()}${snapshot?`<div class="scores">${Object.entries(labels).map(([k,v])=>`<div><small>${v}</small><strong>${snapshot[k]}<small> / 5</small></strong></div>`).join('')}</div><p>${tag('上次自评 · '+dateText(snapshot.at))} ${esc(snapshot.note)}</p>${button('更正自评','correct','',`data-id="${snapshot.id}"`)} ${!cardFor('snapshot',snapshot.id)?button('自评打卡领卡','check','',`data-source="snapshot" data-id="${snapshot.id}"`):''}`:''} ${button('新增快速自评','snapshot')}</details>`;
-    return `<section class="student-home-hero"><div><h1>收下今天的<br>一个瞬间。</h1><p>用镜头、文字和心情词，写一页属于自己的手记。</p><a class="zj-journal-link" href="#journal">照一照 · 写心情手记 <span aria-hidden="true">↗</span></a></div></section><div class="student-grid">${block(last?'最近的心情手记':'心情手记',`${status}<a href="#journal">打开我的手记 →</a>${quick}`)}${nextAction()}</div>${campus.hints.length?block('校园提醒',campus.hints.map(h=>`<p>${esc(h)}</p>`).join('')+'<a href="#campus">打开校园日程 →</a>'):''}`;
+    return `<section class="student-home-hero"><div><h1>收下今天的<br>一个瞬间。</h1><p>用镜头、文字和心情词，写一页属于自己的手记。</p><div class="hero-actions"><a class="zj-journal-link" href="#journal">照一照 · 写手记 <span aria-hidden="true">↗</span></a><a class="zj-plan-link" href="#plan">一日规划 <span aria-hidden="true">→</span></a></div></div></section>${classCare.invitations.length?`<a class="class-invite-link" href="#care">你有 ${classCare.invitations.length} 条班级邀请 <strong>查看邀请 →</strong></a>`:''}<div class="student-grid">${block(last?'最近的心情手记':'心情手记',`${status}<a href="#journal">打开我的手记 →</a>${quick}`)}${dayAtGlance()}</div>${active()?nextAction():''}${campus.hints.length?block('校园提醒',campus.hints.map(h=>`<p>${esc(h)}</p>`).join('')+'<a href="#campus">打开校园日程 →</a>'):''}`;
   }
   function actions(){
     return `<h1>小行动</h1>${nextAction()}${block('换一种开始方式', Object.entries(state.catalog).map(([k,c])=>`<div class="student-row"><div><strong>${esc(c.title)}</strong><small>${c.seconds/60} 分钟 · ${esc(c.description)}</small></div>${button('选择','choose','',`data-kind="${k}"`)}</div>`).join(''))}${block('行动记录',state.actions.filter(a=>a.status!=='active').map(a=>`<div class="student-row"><div><strong>${esc(state.catalog[a.kind].title)}</strong><small>${dateText(a.at)} · ${a.status==='done'?esc(a.feedback):'已退出'}</small></div>${a.status==='done'&&!cardFor('action',a.id)?button('打卡领卡','check','',`data-source="action" data-id="${a.id}"`):''}</div>`).join('')||empty('完成的小行动会留在这里。'))}`;

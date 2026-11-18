@@ -1,3 +1,4 @@
+import {mountAfterJournal} from './planner.js';
 const words = ['松了一口气','期待','开心','被理解','平静','好奇','想念','有点乱','疲惫','委屈','焦虑','说不清'];
 const prompts = ['今天有什么细节，让你停顿了一下？','如果把今天写成一幅画，你会画下什么？','此刻，你希望有人理解哪件小事？','今天什么时候，你感到自己被接住了？'];
 const needs = ['有人听我说','理清思绪','歇一会儿','迈出第一步'];
@@ -51,6 +52,7 @@ export async function renderJournal(root,ctx){
     <div class="j-detail-words">${e.words.map(w=>'<span>'+esc(w)+'</span>').join('')}</div>${e.story?'<p class="j-prose">'+esc(e.story)+'</p>':''}
     ${e.context?'<p><strong>当时的场景</strong>　'+esc(e.context)+'</p>':''}${e.need?'<p><strong>我现在想要</strong>　'+esc(e.need)+'</p>':''}
     ${e.width?'<figure><div data-detail-photo>正在读取照片…</div><figcaption>'+esc(e.caption)+'</figcaption></figure>':''}
+    ${e.state==='published'?'<div data-next-step>正在整理接下来的行动…</div>':''}
     ${showAnswer('文字回声',e.reflection,e.reflection_source)}${showAnswer('照片场景线索',e.scene,e.scene_source)}
     <details class="j-ai"><summary>邀请小照读一读</summary><div><p>每次单独选择交给模型的内容。已保存的手记可以直接回看。</p>
     ${e.story||e.words.length||e.need||e.context?`<p><small>文字 · ${esc(modelLabel(ai?.text))}</small></p><button data-model="reflect">发送本篇文字，生成回声</button>`:''}
@@ -77,6 +79,7 @@ export async function renderJournal(root,ctx){
     view.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{if(allowLeave()){dirty=false;selected=b.dataset.open;paint();}});
     const more=$('[data-more]');if(more)more.onclick=()=>run(async()=>{const morePage=await ctx.api('/api/journal/page',{before:next});entries.push(...morePage.entries);next=morePage.next;paint();});
     if(active){
+      if(active.state==='published')mountAfterJournal($('[data-next-step]'),ctx,active.id);
       if(active.width)requestPhoto(active.id,$('[data-detail-photo]'));
       $('[data-edit]').onclick=()=>startEdit(active);
       const card=$('[data-card]');if(card)card.onclick=()=>run(async()=>{await ctx.api('/api/journal/card',{id:active.id,note:$('[data-card-note]').value});message('「此刻留影」已在成长卡册，同一篇手记只发一张。');});
