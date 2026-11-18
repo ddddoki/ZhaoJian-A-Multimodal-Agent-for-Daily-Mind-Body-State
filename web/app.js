@@ -10,7 +10,7 @@ import {renderStudent} from './student.js';
 import {renderCampus,renderPrivacy,renderCampusAdmin} from './campus.js';
 import {renderManager,renderSharing} from './manager.js';
 const app=document.querySelector('#app');
-let user=null, demo=false, generation=0;
+let user=null, demo=false, desktopPet=false, generation=0;
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(path,data){
   const response=await fetch(path,data===undefined?{cache:'no-store'}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -58,7 +58,7 @@ function loginPage(){
 }
 async function reloadUser(){
   const session=await api('/api/session');
-  user=session.user;demo=session.demo;
+  user=session.user;demo=session.demo;desktopPet=session.desktop_pet===true;
   await render();
 }
 function navLink(key,selected,short=false){
@@ -95,7 +95,7 @@ async function render(){
     catch(e){alert(e.message);}
   };
   const root=app.querySelector('#view');
-  const ctx={api,escape,user,reloadUser,refresh:()=>ticket===generation?render():Promise.resolve(),navigate:key=>{location.hash=key;}};
+  const ctx={api,escape,user,reloadUser,desktopPet,refresh:()=>ticket===generation?render():Promise.resolve(),navigate:key=>{location.hash=key;}};
   const layer=document.querySelector('#pet-layer');
   if(user.role==='student'&&petOwner!==user.id){
     petOwner=user.id;

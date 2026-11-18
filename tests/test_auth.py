@@ -1,4 +1,5 @@
 import json
+import os
 from http.cookiejar import CookieJar
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -6,8 +7,9 @@ from tempfile import TemporaryDirectory
 from threading import Thread
 import time
 import unittest
+from unittest.mock import patch
 from urllib.error import HTTPError
-from urllib.request import build_opener, HTTPCookieProcessor, Request
+from urllib.request import build_opener, HTTPCookieProcessor, ProxyHandler, Request
 
 import registration
 import server
@@ -32,11 +34,11 @@ class RegistrationTest(unittest.TestCase):
         self.addCleanup(self.http.server_close)
         self.addCleanup(self.http.shutdown)
         self.base=f'http://127.0.0.1:{self.http.server_port}'
-        self.client=build_opener(HTTPCookieProcessor(CookieJar()))
+        self.client=build_opener(ProxyHandler({}), HTTPCookieProcessor(CookieJar()))
 
-    def call(self,path,data=None,status=200):
+    def call(self,path,data=None,status=200,headers=None):
         request=Request(self.base+path, data=None if data is None else json.dumps(data).encode(),
-                        headers={'Content-Type':'application/json'})
+                        headers={'Content-Type':'application/json', **(headers or {})})
         try:response=self.client.open(request)
         except HTTPError as exc:response=exc
         with response:
@@ -63,6 +65,30 @@ class RegistrationTest(unittest.TestCase):
         self.call('/api/login',{**data,'role':'manager'},401)
         self.assertEqual(self.call('/api/login',data)['user'],user)
         self.call('/api/register',{**data,'role':'admin'},400)
+
+    def test_codespace_origin_is_scoped_to_this_forwarded_port(self):
+        port = self.http.server_port
+        origin = f'https://demo-space-{port}.app.github.dev'
+        environment = {'CODESPACES':'true', 'CODESPACE_NAME':'demo-space',
+                       'GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN':'app.github.dev'}
+        with patch.dict(os.environ, environment):
+            self.http.codespace_origin = server.codespace_origin(port)
+        self.assertEqual(self.http.codespace_origin, origin)
+        self.call('/api/logout', {}, headers={'Origin':origin})
+        forwarded_host = f'demo-space-{port}.app.github.dev'
+        for local in (f'http://localhost:{port}', self.base):
+            self.call('/api/logout', {}, headers={'Host':forwarded_host, 'Origin':local})
+        self.call('/api/logout', {}, 403, {'Host':forwarded_host, 'Origin':'http://localhost:1'})
+        self.call('/api/logout', {}, 403, {'Host':'example.com', 'Origin':self.base})
+        for other in ('https://example.com', f'https://another-space-{port}.app.github.dev'):
+            with self.subTest(origin=other):
+                self.call('/api/logout', {}, 403, {'Origin':other})
+        self.call('/api/logout', {}, 403, {'Origin':'https://example.com',
+                                           'X-Forwarded-Host':'example.com'})
+        with patch.dict(os.environ, {'CODESPACES':''}):
+            self.http.codespace_origin = server.codespace_origin(port)
+        self.assertIsNone(self.http.codespace_origin)
+        self.call('/api/logout', {}, 403, {'Origin':origin})
 
     def test_staff_roles_scope_and_single_use(self):
         for role in registration.STAFF:

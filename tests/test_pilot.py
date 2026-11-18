@@ -6,6 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Thread
 import unittest
+from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 from urllib.request import build_opener, HTTPCookieProcessor, Request
 
@@ -36,6 +37,22 @@ class Pilot(unittest.TestCase):
 
     def login(self,username):
         browser=build_opener(HTTPCookieProcessor(CookieJar()));self.call(browser,'/api/login',{'username':username,'password':'ZhaojianDemo1'});return browser
+
+    def test_desktop_pet_uses_authenticated_student_session(self):
+        launcher = Mock()
+        launcher.start.return_value = {'running':True, 'already_running':False}
+        with patch.object(self.host, 'desktop_pet', launcher, create=True):
+            self.call(build_opener(), '/api/desktop/start', {}, 401)
+            manager = self.login('chen')
+            self.call(manager, '/api/desktop/start', {}, 403)
+            launcher.start.assert_not_called()
+            student = self.login('lin')
+            result = self.call(student, '/api/desktop/start', {})
+            self.assertEqual(result, launcher.start.return_value)
+            launcher.start.assert_called_once()
+            self.call(student, '/api/logout', {})
+            launcher.close.assert_called_once()
+            self.call(student, '/api/desktop/start', {}, 401)
 
     def test_student_journey_and_scope(self):
         a=self.login('lin');other=self.login('zhou');mgr=self.login('chen');snap={'energy':3,'mood':3,'recovery':4,'tension':3,'note':'测试专属记录'}

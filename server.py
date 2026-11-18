@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import mimetypes
+import os
 from pathlib import Path
 import secrets
 import sqlite3
@@ -20,6 +21,7 @@ import journal
 import pet
 import companion_ai
 import registration
+from desktop_launch import DesktopPetLauncher, LaunchError
 import care
 import planner
 from registration import password_hash
@@ -72,6 +74,13 @@ def public_user(row):
     return result
 
 
+def codespace_origin(port):
+    name = os.environ.get('CODESPACE_NAME')
+    domain = os.environ.get('GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN')
+    if os.environ.get('CODESPACES') == 'true' and name and domain:
+        return f'https://{name}-{port}.{domain}'
+
+
 class Handler(BaseHTTPRequestHandler):
     def reply(self, status, content, mime='application/json; charset=utf-8', cookie=None):
         if not isinstance(content, bytes):
@@ -97,9 +106,23 @@ class Handler(BaseHTTPRequestHandler):
         mime=mimetypes.guess_type(file.name)[0] or 'application/octet-stream'
         self.reply(200,file.read_bytes(), mime+'; charset=utf-8' if mime.startswith(('text/','application/javascript')) else mime)
 
+    def accepts_origin(self, origin):
+        host = self.headers.get('Host')
+        if urlsplit(origin).netloc == host:
+            return True
+        # Port forwarding may rewrite Host or Origin to the internal loopback address.
+        public_origin = getattr(self.server, 'codespace_origin', None)
+        if not public_origin:
+            return False
+        port = self.server.server_port
+        local_hosts = (f'127.0.0.1:{port}', f'localhost:{port}')
+        if origin == public_origin:
+            return host in local_hosts
+        return host == urlsplit(public_origin).netloc and origin in {f'http://{h}' for h in local_hosts}
+
     def do_POST(self):
         origin=self.headers.get('Origin')
-        if origin and urlsplit(origin).netloc!=self.headers.get('Host'):
+        if origin and not self.accepts_origin(origin):
             return self.reply(403,{'error':'请求来源无效'})
         path = urlsplit(self.path).path
         max_mb = 8 if path == '/api/journal/save' else 1
@@ -136,7 +159,8 @@ class Handler(BaseHTTPRequestHandler):
         digest=hashlib.sha256(token.encode()).hexdigest()
         user=db.execute('SELECT u.* FROM users u JOIN sessions s ON u.id=s.user_id WHERE s.token=? AND s.expires>?',(digest,time.time())).fetchone()
         if path=='/api/session' and method=='GET':
-            return {'user':public_user(user) if user else None,'demo':self.server.demo},200,None
+            return {'user':public_user(user) if user else None,'demo':self.server.demo,
+                    'desktop_pet':os.name=='nt' and hasattr(self.server,'desktop_pet')},200,None
         if path == '/api/demo/invite' and method == 'POST':
             if not self.server.demo:
                 raise PermissionError('仅演示库开放体验邀请')
@@ -150,9 +174,20 @@ class Handler(BaseHTTPRequestHandler):
                 return {'error':'身份、账号或密码不正确'},401,None
             return {'user':public_user(row)},200,registration.session_cookie(db, row['id'], digest)
         if path=='/api/logout' and method=='POST':
+            if hasattr(self.server,'desktop_pet'):
+                self.server.desktop_pet.close(digest)
             db.execute('DELETE FROM sessions WHERE token=?',(digest,))
             return {'ok':True},200,'zj_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'
         if user is None:return {'error':'请先登录'},401,None
+        if path == '/api/desktop/start' and method == 'POST':
+            if user['role'] != 'student':
+                raise PermissionError('请使用学生身份打开桌面小照')
+            if not hasattr(self.server,'desktop_pet'):
+                return {'error':'此服务尚未启用本机桌宠'},503,None
+            try:
+                return self.server.desktop_pet.start(token),200,None
+            except LaunchError as exc:
+                return {'error':str(exc)},503,None
         if (method == 'GET' and path == '/api/profile') or (method == 'POST' and path in ('/api/profile/gender','/api/profile/clear-cycle')):
             return registration.profile(db, user, path, data),200,None
         for module in MODULES:
@@ -165,17 +200,20 @@ def main():
     cli=argparse.ArgumentParser(description='照见本地服务')
     cli.add_argument('--demo',action='store_true',help='创建虚构体验账号，启用一键体验')
     cli.add_argument('--open',action='store_true',help='服务就绪后打开浏览器')
-    cli.add_argument('--port',type=int,default=8765)
+    cli.add_argument('--port',type=int,default=8767)
     cli.add_argument('--db',type=Path)
     args=cli.parse_args();file=args.db or ROOT/'.local'/('demo.sqlite3' if args.demo else 'app.sqlite3')
     setup(file,args.demo)
     with ThreadingHTTPServer(('127.0.0.1',args.port),Handler) as server:
         server.dbfile=file;server.demo=args.demo
+        server.codespace_origin = codespace_origin(server.server_port)
+        server.desktop_pet = DesktopPetLauncher(server.server_port)
         print(f'照见已启动 http://127.0.0.1:{server.server_port}',flush=True)
         if args.open:
             import webbrowser
             webbrowser.open(f'http://127.0.0.1:{server.server_port}')
         try:server.serve_forever()
         except KeyboardInterrupt:pass
+        finally:server.desktop_pet.close()
 
 if __name__=='__main__':main()
