@@ -66,6 +66,21 @@ class RegistrationTest(unittest.TestCase):
         self.assertEqual(self.call('/api/login',data)['user'],user)
         self.call('/api/register',{**data,'role':'admin'},400)
 
+    def test_codespace_sessions_ignore_forwarded_cookies(self):
+        self.http.codespace_origin = 'https://demo-space.app.github.dev'
+        first = self.draft()
+        second = self.draft(username='second.student')
+        alice = self.call('/api/register',first,201)['tab_session']
+        bob = self.call('/api/register',second,201)['tab_session']
+        cookie = {'Cookie':'zj_session='+alice}
+        self.assertIsNone(self.call('/api/session',headers=cookie)['user'])
+        headers = {**cookie,'X-Zhaojian-Session':bob}
+        self.assertEqual(self.call('/api/session',headers=headers)['user']['username'], second['username'])
+        self.call('/api/logout',{},headers=headers)
+        self.assertIsNone(self.call('/api/session',headers=headers)['user'])
+        self.assertEqual(self.call('/api/session',headers={'X-Zhaojian-Session':alice})['user']['username'],first['username'])
+        self.assertTrue(self.call('/api/login',second)['tab_session'])
+
     def test_codespace_origin_is_scoped_to_this_forwarded_port(self):
         port = self.http.server_port
         origin = f'https://demo-space-{port}.app.github.dev'

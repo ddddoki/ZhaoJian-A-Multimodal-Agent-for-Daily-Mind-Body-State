@@ -88,7 +88,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type',mime)
         self.send_header('Content-Length',str(len(content)))
-        self.send_header('Cache-Control','no-store')
+        self.send_header('Cache-Control','private, no-store')
+        self.send_header('Vary','Cookie, X-Zhaojian-Session')
         self.send_header('X-Content-Type-Options','nosniff')
         self.send_header('X-Frame-Options','DENY')
         if cookie:
@@ -154,8 +155,12 @@ class Handler(BaseHTTPRequestHandler):
             db.close()
 
     def dispatch(self,db,method,path,data):
-        cookies=SimpleCookie();cookies.load(self.headers.get('Cookie',''))
-        token=cookies['zj_session'].value if 'zj_session' in cookies else ''
+        cloud = bool(getattr(self.server, 'codespace_origin', None))
+        if cloud:
+            token = self.headers.get('X-Zhaojian-Session', '')
+        else:
+            cookies=SimpleCookie();cookies.load(self.headers.get('Cookie',''))
+            token=cookies['zj_session'].value if 'zj_session' in cookies else ''
         digest=hashlib.sha256(token.encode()).hexdigest()
         user=db.execute('SELECT u.* FROM users u JOIN sessions s ON u.id=s.user_id WHERE s.token=? AND s.expires>?',(digest,time.time())).fetchone()
         if path=='/api/session' and method=='GET':
@@ -165,19 +170,24 @@ class Handler(BaseHTTPRequestHandler):
             if not self.server.demo:
                 raise PermissionError('仅演示库开放体验邀请')
             return registration.issue_invite(db, data.get('role'), '软件一班', hours=1, demo=True),200,None
-        if path == '/api/register' and method == 'POST':
-            row = registration.register(db, data, self.server.demo)
-            return {'user':public_user(row)},201,registration.session_cookie(db, row['id'], digest)
-        if path == '/api/login' and method == 'POST':
-            row = registration.authenticate(db, data)
-            if row is None:
-                return {'error':'身份、账号或密码不正确'},401,None
-            return {'user':public_user(row)},200,registration.session_cookie(db, row['id'], digest)
+        if path in ('/api/register','/api/login') and method == 'POST':
+            if path == '/api/register':
+                row = registration.register(db, data, self.server.demo)
+                status = 201
+            else:
+                row = registration.authenticate(db, data)
+                if row is None:
+                    return {'error':'身份、账号或密码不正确'},401,None
+                status = 200
+            token = registration.create_session(db, row['id'], digest)
+            if cloud:
+                return {'user':public_user(row), 'tab_session':token},status,None
+            return {'user':public_user(row)},status,f'zj_session={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200'
         if path=='/api/logout' and method=='POST':
             if hasattr(self.server,'desktop_pet'):
                 self.server.desktop_pet.close(digest)
             db.execute('DELETE FROM sessions WHERE token=?',(digest,))
-            return {'ok':True},200,'zj_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'
+            return {'ok':True},200,None if cloud else 'zj_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'
         if user is None:return {'error':'请先登录'},401,None
         if path == '/api/desktop/start' and method == 'POST':
             if user['role'] != 'student':

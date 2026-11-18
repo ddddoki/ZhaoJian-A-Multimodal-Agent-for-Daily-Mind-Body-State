@@ -13,9 +13,27 @@ const app=document.querySelector('#app');
 let user=null, demo=false, desktopPet=false, generation=0;
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(path,data){
-  const response=await fetch(path,data===undefined?{cache:'no-store'}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const key='zhaojian.tab-session';
+  const token=sessionStorage.getItem(key);
+  const headers=token?{'X-Zhaojian-Session':token}:{};
+  const url=new URL(path,location.origin);
+  url.searchParams.set('_request',crypto.randomUUID());
+  const options={cache:'no-store',headers};
+  if(data!==undefined){
+    options.method='POST';
+    headers['Content-Type']='application/json';
+    options.body=JSON.stringify(data);
+  }
+  const response=await fetch(url,options);
   const result=await response.json();
-  if(!response.ok){if(response.status===401 && user){user=null;loginPage();}throw new Error(result.error||'请求失败');}
+  if(!response.ok){
+    if(response.status===401 && user && token===sessionStorage.getItem(key)){
+      sessionStorage.removeItem(key);user=null;loginPage();
+    }
+    throw new Error(result.error||'请求失败');
+  }
+  if(result.tab_session)sessionStorage.setItem(key,result.tab_session);
+  if(path==='/api/logout')sessionStorage.removeItem(key);
   return result;
 }
 const art={sun:'<circle cx="12" cy="12" r="4"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2.2 2.2m11.6 11.6L20 20M4 20l2.2-2.2M17.8 6.2 20 4"/>',student:'<path d="m3 11 9-8 9 8v9H3z"/><path d="M9 20v-7h6v7"/>',journal:'<rect x="2" y="6" width="20" height="15" rx="3"/><path d="m6 6 2-3h7l2 3"/><circle cx="12" cy="13" r="4"/>',campus:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 10h18m-14 4h3m3 0h3"/>',sharing:'<path d="M4 5h16v12h-9l-5 4v-4H4z"/><path d="M8 9h8m-8 4h5"/>',privacy:'<rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/>',data:'<path d="M3 12h4l2-6 4 12 2-6h6"/>',ops:'<path d="M5 4h14v16H5zM8 9h8m-8 4h8m-8 4h5"/>',manage:'<path d="M3 20h18M5 17v-6h3v6m3 0V4h3v13m3 0v-9h3v9"/>',publish:'<path d="m3 10 14-5v14L3 14zm3 5 2 5h3l-2-5m11-6 2-1"/>'};

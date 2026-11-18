@@ -123,9 +123,9 @@ def authenticate(db, data):
     return user
 
 
-def session_cookie(db, user_id, previous):
+def create_session(db, user_id, previous):
     now = int(time.time())
     token = secrets.token_urlsafe(32)
     db.execute('DELETE FROM sessions WHERE expires<=? OR token=?', (now, previous))
     db.execute('INSERT INTO sessions VALUES(?,?,?)', (signature(token), user_id, now+43200))
-    return f'zj_session={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200'
+    return token
