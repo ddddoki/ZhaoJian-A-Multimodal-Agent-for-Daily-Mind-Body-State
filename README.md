@@ -1,4 +1,12 @@
 # Zhaojian-A-Multimodal-Agent-for-Daily-Mind-Body-State
+
+## 运行首版
+
+在 Windows 中双击同目录的 `启动照见.cmd`，或在终端运行 `python server.py --demo`。浏览器打开 `http://127.0.0.1:8765`。需要 Python 3.10 或更高版本，核心功能使用标准库。
+
+学生、校园、管理及运营功能的体验路线、实际开发流程、验收命令和首版边界见 [首版开发与验收](./首版开发与验收.md)。
+
+
 # 照见 Zhaojian
 
 > **Zhaojian: A Multimodal Agent for Daily Mind-Body State**  
