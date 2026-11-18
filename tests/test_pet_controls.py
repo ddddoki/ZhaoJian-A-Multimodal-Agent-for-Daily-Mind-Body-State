@@ -54,6 +54,30 @@ try {
   if (pet.dataset.edge === initial) throw Error('explicit switch failed');
   drawer.querySelector('.zj-pet-close').click();
   if (!drawer.hidden || pet.dataset.edge === initial) throw Error('close changed position');
+  const launcher = pet.querySelector('.zj-pet-launch');
+  const area = pet.getBoundingClientRect();
+  const from = launcher.getBoundingClientRect();
+  const targetX = area.left + (area.width - from.width) * 0.4;
+  const targetY = area.top + (area.height - from.height) * 0.3;
+  // Programmatic pointer events have no native capture; deliver the sequence to the launcher.
+  launcher.setPointerCapture = () => {};
+  const point = (type, x, y) => launcher.dispatchEvent(new PointerEvent(type, {
+    bubbles:true, pointerId:3, isPrimary:true, button:0, clientX:x+5, clientY:y+5,
+  }));
+  point('pointerdown', from.left, from.top);
+  point('pointermove', targetX, targetY);
+  point('pointerup', targetX, targetY);
+  launcher.dispatchEvent(new MouseEvent('click', {bubbles:true, detail:1}));
+  if (!drawer.hidden) throw Error('drag opened the panel');
+  const verifyPosition = element => {
+    const rect = element.getBoundingClientRect();
+    if (Math.abs(rect.left-targetX)>2 || Math.abs(rect.top-targetY)>2)
+      throw Error('lost two-dimensional position');
+  };
+  verifyPosition(launcher);
+  mount.replaceChildren();
+  await mountPet(mount, {api, escape:String});
+  verifyPosition(mount.querySelector('.zj-pet-launch'));
   status.textContent = 'PASS';
 } catch (error) {
   status.textContent = 'FAIL ' + error.message;
@@ -62,7 +86,7 @@ try {
 
 
 class PetControlTest(unittest.TestCase):
-    def test_only_swap_button_moves_open_drawer(self):
+    def test_drawer_controls_and_free_drag(self):
         browser = chromium()
         if not browser:
             self.skipTest('A local Chrome, Edge or Chromium browser is required')
@@ -70,7 +94,10 @@ class PetControlTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             work = Path(folder)
             page = work / 'test.html'
-            page.write_text('<meta charset="utf-8"><main></main><output></output>'
+            styles = ''.join((ROOT / 'web' / name).read_text(encoding='utf-8')
+                             for name in ('pet.css', 'spaces.css'))
+            page.write_text('<meta charset="utf-8"><style>' + styles + '</style>'
+                            '<main id="pet-layer"></main><output></output>'
                             '<script>' + module + '\n;(async () => {' + SCENARIO + '})();</script>', encoding='utf-8')
             run = subprocess.run(
                 [browser, '--headless', '--disable-gpu', '--no-first-run',

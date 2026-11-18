@@ -5,41 +5,70 @@ const sprite = `<span class="zj-specimen" aria-hidden="true"><span class="zj-hal
 
 export async function mountPet(root,ctx) {
   const {api,escape:esc}=ctx;
-  root.innerHTML=`<div class="zj-pet" data-mood="calm"><section class="zj-pet-drawer" aria-label="桌宠小照" hidden></section><button class="zj-pet-launch" type="button" aria-label="打开桌宠小照" title="点击互动，左右拖动换边" aria-expanded="false">${sprite}<span class="zj-callname">小照</span></button></div>`;
+  root.innerHTML=`<div class="zj-pet" data-mood="calm"><section class="zj-pet-drawer" aria-label="桌宠小照" hidden></section><button class="zj-pet-launch" type="button" aria-label="打开桌宠小照" title="轻点互动，按住可自由拖动" aria-expanded="false">${sprite}<span class="zj-callname">小照</span></button></div>`;
   const pet=root.firstElementChild, drawer=pet.querySelector('section'), launch=pet.querySelector('.zj-pet-launch');
-  // A larger companion can sit on either edge, leaving page controls within reach.
-  const edgeKey='zj-pet-edge';
-  const setEdge=side=>{
-    pet.dataset.edge=side==='left'?'left':'right';
-    try{localStorage.setItem(edgeKey,pet.dataset.edge);}catch{}
-  };
-  try{pet.dataset.edge=localStorage.getItem(edgeKey)==='left'?'left':'right';}catch{}
-  let drag=null,ignoreClick=false;
+  // Fractions refer to the available travel after subtracting the widget size.
+  // The launcher and the larger open drawer use the same anchor within their own travel.
+  const positionKey='zj-pet-position';
+  const clamp=value=>Math.max(0,Math.min(1,value));
+  let position={x:1,y:1};
+  try{
+    const saved=JSON.parse(localStorage.getItem(positionKey));
+    if(Number.isFinite(saved?.x)&&Number.isFinite(saved?.y)){
+      position={x:clamp(saved.x),y:clamp(saved.y)};
+    }else if(localStorage.getItem('zj-pet-edge')==='left'){
+      position.x=0;
+    }
+  }catch{}
+  function place(x,y){
+    position={x:clamp(x),y:clamp(y)};
+    pet.style.setProperty('--pet-x',position.x);
+    pet.style.setProperty('--pet-y',position.y);
+    pet.dataset.edge=position.x<0.5?'left':'right';
+  }
+  function remember(){
+    try{localStorage.setItem(positionKey,JSON.stringify(position));}catch{}
+  }
+  place(position.x,position.y);
+  let drag=null,suppressClick=false;
   launch.addEventListener('pointerdown',e=>{
-    if(e.button!==0)return;
-    drag={id:e.pointerId,x:e.clientX,box:launch.getBoundingClientRect(),moved:false};
+    if(!e.isPrimary||e.button!==0||drag)return;
+    const box=launch.getBoundingClientRect();
+    drag={id:e.pointerId,startX:e.clientX,startY:e.clientY,offsetX:e.clientX-box.left,
+          offsetY:e.clientY-box.top,original:position,moved:false};
+    suppressClick=false;
     launch.setPointerCapture(e.pointerId);
   });
-  launch.addEventListener('pointermove',e=>{
+  function move(e){
     if(!drag||drag.id!==e.pointerId)return;
-    const delta=e.clientX-drag.x;
-    if(Math.abs(delta)>10)drag.moved=true;
-    if(drag.moved){
-      const shift=Math.max(6-drag.box.left,Math.min(innerWidth-6-drag.box.right,delta));
-      launch.style.translate=shift+'px 0';
-    }
-  });
+    if(!drag.moved&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<7)return;
+    drag.moved=true;
+    launch.classList.add('is-dragging');
+    const area=pet.getBoundingClientRect(),box=launch.getBoundingClientRect();
+    const width=area.width-box.width,height=area.height-box.height;
+    place(width>0?(e.clientX-area.left-drag.offsetX)/width:0,
+          height>0?(e.clientY-area.top-drag.offsetY)/height:0);
+  }
+  launch.addEventListener('pointermove',move);
   launch.addEventListener('pointerup',e=>{
     if(!drag||drag.id!==e.pointerId)return;
-    if(drag.moved){
-      setEdge(e.clientX<innerWidth/2?'left':'right');
-      ignoreClick=true;setTimeout(()=>{ignoreClick=false;},0);
-    }
-    launch.style.translate='';drag=null;
+    move(e);
+    if(drag.moved){remember();suppressClick=true;}
+    drag=null;
+    launch.classList.remove('is-dragging');
   });
-  launch.addEventListener('pointercancel',()=>{launch.style.translate='';drag=null;});
+  function cancelDrag(e){
+    if(!drag||drag.id!==e.pointerId)return;
+    place(drag.original.x,drag.original.y);
+    drag=null;
+    launch.classList.remove('is-dragging');
+  }
+  launch.addEventListener('pointercancel',cancelDrag);
+  launch.addEventListener('lostpointercapture',cancelDrag);
   launch.addEventListener('click',e=>{
-    if(ignoreClick){e.stopImmediatePropagation();e.preventDefault();}
+    // Touch browsers can dispatch this click after pointerup in a later task.
+    if(suppressClick&&e.detail>0){e.stopImmediatePropagation();e.preventDefault();}
+    suppressClick=false;
   },true);
   let state={mood:'calm',keep:false,memories:[]}, model=null, chat=[], busy=false, mode='倾听', firstLoad=true, loaded=false;
   let ai=false, preference='',animTimer, version=0;
@@ -66,7 +95,10 @@ export async function mountPet(root,ctx) {
   drawer.addEventListener('click', event => {
     const button = event.target.closest('button');
     if (!button || !drawer.contains(button)) return;
-    if (button.hasAttribute('data-swap-edge')) setEdge(pet.dataset.edge === 'left' ? 'right' : 'left');
+    if (button.hasAttribute('data-swap-edge')) {
+      place(position.x<0.5?1:0,position.y);
+      remember();
+    }
     else if (button.classList.contains('zj-pet-close')) opened(false);
     else if (button.hasAttribute('data-tickle')) perform('pat');
     else if (button.hasAttribute('data-action')) perform(button.dataset.action);

@@ -46,7 +46,6 @@ body{background:radial-gradient(ellipse at 97% 6%,#dce5f3 0,transparent 43%),rad
   .shell .tabbar svg{display:block;width:18px;height:18px}.shell .tabbar a span,.shell .tabbar button span{display:block}
   .shell .tabbar a[aria-current],.shell .tabbar .selected{background:#d7e8dc;color:#1c5141;box-shadow:none}
   #space-menu{margin:auto auto calc(var(--mobile-bar) + 15px + env(safe-area-inset-bottom))}
-  #pet-layer .zj-pet{bottom:calc(var(--mobile-bar) + 6px + env(safe-area-inset-bottom));right:8px}
   #pet-layer .zj-pet-launch .zj-specimen{width:90px;height:80px}
   #pet-layer .zj-pet-drawer{max-height:calc(100dvh - var(--mobile-bar) - 38px);bottom:0}
   #pet-layer .zj-pet-play .zj-specimen{width:109px;height:96px}
@@ -56,11 +55,25 @@ body{background:radial-gradient(ellipse at 97% 6%,#dce5f3 0,transparent 43%),rad
 .class-invite-link{display:flex;justify-content:space-between;gap:10px;text-decoration:none;padding:10px 16px;margin-bottom:14px;background:#e0ede2;border:1px solid #b8d4c6;border-radius:14px;color:#285546;font-size:14px}.roster-link{display:inline-flex;align-items:center;gap:16px;width:fit-content;padding:7px 13px;border-radius:30px;background:#ffffff9e;border:1px solid #a9c8b7;font-size:13px}.shell .workspace .support-space .s-hero{background:radial-gradient(ellipse at 94% 20%,#cbe0d7,transparent 45%),linear-gradient(115deg,#f7faf1,#deede7);padding:clamp(24px,3.5vw,45px)}
 @media(max-width:760px){.glance{margin-bottom:10px}.glance ol{gap:0}.roster-link{margin-bottom:0}}
 .shell .student-module .student-tabs button.selected{background:transparent;border-bottom:2px solid #548b73;box-shadow:none}
-#pet-layer .zj-pet-launch{touch-action:pan-y;user-select:none}
-#pet-layer .zj-pet[data-edge=left]{right:auto;left:max(14px,env(safe-area-inset-left))}
-#pet-layer .zj-pet[data-edge=left] .zj-pet-drawer{left:0;right:auto}
+/* Both widgets share a bounded positioning area. Only their visible controls accept input. */
+#pet-layer .zj-pet{
+  inset:max(10px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(15px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  pointer-events:none;
+}
+#pet-layer .zj-pet-launch,#pet-layer .zj-pet-drawer{
+  position:absolute;right:auto;bottom:auto;
+  left:calc(var(--pet-x,1) * 100%);top:calc(var(--pet-y,1) * 100%);
+  translate:calc(var(--pet-x,1) * -100%) calc(var(--pet-y,1) * -100%);
+  pointer-events:auto;
+}
+#pet-layer .zj-pet-launch{touch-action:none;user-select:none;cursor:grab;transform:none}
+#pet-layer .zj-pet-launch.is-dragging{cursor:grabbing}
+#pet-layer .zj-pet-drawer{max-width:100%;max-height:min(100%,740px);box-sizing:border-box}
 .pet-tools{display:flex;align-items:center;gap:7px}.pet-tools [data-swap-edge]{font-size:12px;color:#436958;background:transparent;border:1px solid #b9d0c0;border-radius:12px;padding:3px 9px}
 @media(max-width:760px){
   .workspace .student-home-hero:before{background:linear-gradient(90deg,#f4f8eefa,#f0f5e8cd 53%,#eaf2e552 100%)}
-  #pet-layer .zj-pet[data-edge=left]{left:8px}
+  #pet-layer .zj-pet{
+    left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));
+    bottom:calc(var(--mobile-bar) + 6px + env(safe-area-inset-bottom));
+  }
 }
