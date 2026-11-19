@@ -32,17 +32,22 @@ export async function renderJournal(root,ctx){
   function chip(w){return '<button type="button" data-word="'+esc(w)+'" aria-pressed="'+entry.words.includes(w)+'">'+esc(w)+'</button>';}
   function form(){
     return `<section class="j-panel j-compose" aria-label="写手记"><div class="j-section-head"><h2>${entry.id?'编辑这一页':'写下此刻'}</h2><button type="button" class="j-link" data-prompt>换个问题 ↻</button></div>
-    <form data-jform><label class="j-story-label" for="j-story">${prompts[promptIndex]}</label><textarea id="j-story" class="j-story" name="story" maxlength="4000" placeholder="可以写一句话，也可以慢慢展开……">${esc(entry.story)}</textarea><div class="j-count" data-j-count></div>
+    <form data-jform>
+    <label class="j-story-label" for="j-story">${prompts[promptIndex]}</label>
+    <div class="j-writing">
+      <textarea id="j-story" class="j-story" name="story" maxlength="4000" placeholder="可以写一句话，也可以慢慢展开……">${esc(entry.story)}</textarea>
+      <div class="j-count" data-j-count></div>
+    </div>
     <fieldset><legend>此刻的感受 <small>可以同时有几种</small></legend><div class="j-chips" data-words>${[...new Set([...words,...entry.words])].map(chip).join('')}</div><div class="j-custom"><input data-custom maxlength="20" aria-label="自定义感受词" placeholder="用自己的词"><button type="button" data-addword>添加</button></div></fieldset>
     <div class="j-pair"><label>发生在哪里，和谁有关？<input name="context" maxlength="160" value="${esc(entry.context)}" placeholder="例如：晚自习回宿舍的路上"></label><label>我现在想要<input name="need" maxlength="160" list="j-needs" value="${esc(entry.need)}" placeholder="写下需要，或选一个"><datalist id="j-needs">${needs.map(n=>'<option value="'+n+'">').join('')}</datalist></label></div>
-    <section class="j-photo"><div class="j-section-head"><div><h3>照一照</h3><p>放一张今天的照片，让它陪你记住这一刻。</p></div><span aria-hidden="true" class="j-camera">◉</span></div>
+    <section class="j-photo"><div class="j-section-head"><h3>添加照片</h3></div>
       <div class="j-preview" data-photo-preview></div><label class="j-pick">选择照片<input type="file" accept="image/jpeg,image/png,image/webp" data-file></label><button type="button" data-remove-photo class="j-link" ${entry.width||preview?'':'hidden'}>移除照片</button>
       <label class="j-caption" data-caption ${entry.width||preview?'':'hidden'}>照片里的故事<input name="caption" maxlength="240" value="${esc(entry.caption)}" placeholder="这张照片对你意味着什么？"></label>
       <small>保存时会上传去除位置等附加信息后的照片，仅你的账号可查看。</small></section>
     <div class="j-savebar"><button class="j-primary" type="submit">保存手记</button><button type="button" data-draft>存为草稿</button>${entry.id?'<button type="button" class="j-link" data-cancel>取消编辑</button>':''}</div></form></section>`;
   }
   function timeline(){
-    return `<section class="j-panel j-timeline"><div class="j-section-head"><h2>我的时间线</h2><button type="button" data-new class="j-link">＋ 新手记</button></div>
+    return `<section class="j-panel j-timeline" id="journal-timeline" aria-labelledby="journal-timeline-heading" tabindex="-1"><div class="j-section-head"><h2 id="journal-timeline-heading">我的时间线</h2><button type="button" data-new class="j-link">＋ 新手记</button></div>
     <div class="j-list">${entries.length?entries.map(e=>`<button type="button" class="j-entry" data-open="${esc(e.id)}" aria-pressed="${selected===e.id}"><span class="j-date">${timeLabel(e.created)}${e.state==='draft'?' · 草稿':''}</span><strong>${esc((e.story||e.caption||e.words.join('、')||e.need||e.context||'有照片的一天').slice(0,68))}</strong><span class="j-entry-tags">${e.width?'▣ 照片　':''}${esc(e.words.slice(0,3).join(' · '))}</span></button>`).join(''):'<p class="j-empty">写下的文字和上传的照片，会按时间收在这里。</p>'}</div>${next?'<button data-more type="button">查看更早的手记</button>':''}</section>`;
   }
   function detail(e){
@@ -73,9 +78,21 @@ export async function renderJournal(root,ctx){
   }
   function paint(){
     const active=entries.find(e=>e.id===selected);
-    view.innerHTML=`<header class="j-hero"><div><p class="j-date">${new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'long'})}</p><h1>心情手记</h1><p>今天的你，有什么想留下？</p></div><div class="j-ripple" aria-hidden="true"><i></i><i></i><i></i></div></header>
+    view.innerHTML=`<header class="j-hero">
+      <div class="j-hero-intro">
+        <p class="j-date">${new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'long'})}</p>
+        <h1>心情手记</h1>
+        <p>今天的你，有什么想留下？</p>
+        <button type="button" class="j-timeline-jump" data-timeline aria-controls="journal-timeline">查看时间线 <span aria-hidden="true">↓</span></button>
+      </div>
+    </header>
     <p class="j-feedback" data-j-msg role="status" aria-live="polite"></p><div class="j-layout">${active?detail(active):form()}${timeline()}</div>`;
-    $('[data-new]').onclick=()=>{if(allowLeave()) startEdit(null);};
+    $('[data-timeline]').onclick=()=>$('#journal-timeline').focus();
+    $('[data-new]').onclick=()=>{
+      if (!allowLeave()) return;
+      startEdit(null);
+      $('#j-story').focus();
+    };
     view.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{if(allowLeave()){dirty=false;selected=b.dataset.open;paint();}});
     const more=$('[data-more]');if(more)more.onclick=()=>run(async()=>{const morePage=await ctx.api('/api/journal/page',{before:next});entries.push(...morePage.entries);next=morePage.next;paint();});
     if(active){
