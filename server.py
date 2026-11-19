@@ -211,19 +211,23 @@ def main():
     cli.add_argument('--demo',action='store_true',help='创建虚构体验账号，启用一键体验')
     cli.add_argument('--open',action='store_true',help='服务就绪后打开浏览器')
     cli.add_argument('--port',type=int,default=8767)
+    cli.add_argument('--host', default='127.0.0.1', help='监听地址，本机运行时使用默认回环地址')
     cli.add_argument('--db',type=Path)
     args=cli.parse_args();file=args.db or ROOT/'.local'/('demo.sqlite3' if args.demo else 'app.sqlite3')
     setup(file,args.demo)
-    with ThreadingHTTPServer(('127.0.0.1',args.port),Handler) as server:
+    with ThreadingHTTPServer((args.host,args.port),Handler) as server:
         server.dbfile=file;server.demo=args.demo
         server.codespace_origin = codespace_origin(server.server_port)
-        server.desktop_pet = DesktopPetLauncher(server.server_port)
-        print(f'照见已启动 http://127.0.0.1:{server.server_port}',flush=True)
+        if args.host == '127.0.0.1' and os.name == 'nt':
+            server.desktop_pet = DesktopPetLauncher(server.server_port)
+        print(f'照见已启动 http://{args.host}:{server.server_port}',flush=True)
         if args.open:
             import webbrowser
             webbrowser.open(f'http://127.0.0.1:{server.server_port}')
         try:server.serve_forever()
         except KeyboardInterrupt:pass
-        finally:server.desktop_pet.close()
+        finally:
+            if hasattr(server, 'desktop_pet'):
+                server.desktop_pet.close()
 
 if __name__=='__main__':main()
