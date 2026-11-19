@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: zhaojian-campus-demo
+    runtime: python
+    plan: free
+    region: singapore
+    branch: deploy/render-demo
+    autoDeployTrigger: "off"
+    buildCommand: python -m pip install -r requirements.txt
+    startCommand: python -u server.py --demo --host 0.0.0.0 --port "$PORT"
+    healthCheckPath: /api/session
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.12"
