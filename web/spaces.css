@@ -14,11 +14,6 @@ body{background:radial-gradient(ellipse at 97% 6%,#dce5f3 0,transparent 43%),rad
 .shell .student-module .student-tabs{background:transparent;border:0;padding:0;gap:3px;margin:12px 0 21px;border-bottom:1px solid #9fb8ae71;width:100%;border-radius:0}
 .shell .student-tabs button{border:0;border-radius:0;font-size:14px;margin:0 8px 0 0;padding:8px 4px;color:#516e64;font-weight:500;background:transparent;box-shadow:none;border-bottom:2px solid transparent}
 .shell .student-tabs .selected{color:#1d4d41;font-weight:700;border-color:#548b73}
-.workspace .student-home-hero{min-height:clamp(252px,23.5vw,345px);border-radius:27px;padding:clamp(28px,3.6vw,58px);box-shadow:var(--space-shadow),inset 0 0 0 1px #ffffff80;background-position:center 57%}
-.workspace .student-home-hero:before{background:linear-gradient(90deg,#f1f7ebf2 0%,#edf5e7c9 26%,#eaf2e56b 48%,transparent 79%)}
-.workspace .student-home-hero h1{font-size:clamp(2.3rem,3.8vw,4.05rem);font-weight:550;line-height:1.17}
-.hero-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:20px}.zj-plan-link{display:inline-flex;gap:8px;align-items:center;padding:8px 16px;border-radius:99px;background:#ffffffad;border:1px solid #a3bbae;color:#224d41;font-size:.92rem;font-weight:600;text-decoration:none}
-.hero-actions a{transition:background-color .16s,box-shadow .16s}.hero-actions a:hover{box-shadow:0 4px 12px #325b4936}
 .workspace .student-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px}
 .workspace .student-grid>.card{box-shadow:var(--space-shadow),inset 0 1px #fff;background:linear-gradient(140deg,#ffffffe8,#f6fbf5b5)}
 .workspace .student-grid>.card:nth-child(2){background:linear-gradient(135deg,#f7f6e6ee,#ffffffe0)}
@@ -38,9 +33,7 @@ body{background:radial-gradient(ellipse at 97% 6%,#dce5f3 0,transparent 43%),rad
   .shell .account{border:0;padding:0;gap:7px;display:flex}.account .avatar{width:27px;height:27px;font-size:13px}.account-name strong{font-size:12px}.account-name small{display:none}
   .workspace{padding:0 14px calc(134px + env(safe-area-inset-bottom));min-height:75dvh}
   .workspace-head{min-height:36px;margin:0 auto 12px;font-size:.74rem}.workspace-head>span{gap:7px}
-  .workspace .student-home-hero{padding:24px;min-height:225px;background-position:center 60%}.workspace .student-home-hero h1{font-size:2.4rem}.workspace .student-home-hero>div{max-width:100%}
   .workspace .student-grid{display:grid;gap:12px}.workspace .student-grid .card{margin:0}.workspace .student-module .student-tabs{margin:8px 0 14px;gap:1px}.shell .student-tabs button{margin-right:4px;font-size:.82rem}
-  .hero-actions{gap:6px}.hero-actions a{padding:7px 10px;font-size:.81rem;gap:5px}
   .shell .tabbar{display:flex;position:fixed;bottom:calc(7px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(calc(100% - 20px),470px);z-index:6;justify-content:space-around;align-items:center;gap:2px;margin:0;padding:5px 6px;border-radius:22px;border:1px solid #ffffffea;background:linear-gradient(130deg,#f8fff9f0,#edf4f1f0);box-shadow:0 5px 24px #335b4938;backdrop-filter:blur(18px)}
   .shell .tabbar a,.shell .tabbar button{display:flex;flex-direction:column;align-items:center;gap:1px;border:0;border-radius:15px;min-width:0;min-height:42px;flex:1;text-decoration:none;background:transparent;color:#4d6a60;padding:4px 2px;line-height:1.2;font-size:11px;font-weight:550}
   .shell .tabbar svg{display:block;width:18px;height:18px}.shell .tabbar a span,.shell .tabbar button span{display:block}
@@ -71,9 +64,213 @@ body{background:radial-gradient(ellipse at 97% 6%,#dce5f3 0,transparent 43%),rad
 #pet-layer .zj-pet-drawer{max-width:100%;max-height:min(100%,740px);box-sizing:border-box}
 .pet-tools{display:flex;align-items:center;gap:7px}.pet-tools :is([data-swap-edge],[data-open-desktop]){font-size:12px;color:#436958;background:transparent;border:1px solid #b9d0c0;border-radius:12px;padding:3px 9px}
 @media(max-width:760px){
-  .workspace .student-home-hero:before{background:linear-gradient(90deg,#f4f8eefa,#f0f5e8cd 53%,#eaf2e552 100%)}
   #pet-layer .zj-pet{
     left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));
     bottom:calc(var(--mobile-bar) + 6px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Shared colors and display type for the student's home and journal. */
+.student-today,
+.j-space {
+  --lake-ink: #173e3a;
+  --lake-action: #18574b;
+  --lake-action-hover: #246e60;
+  --lake-paper: #fbfdfb;
+  --lake-mist: #e8f2f6;
+  --lake-line: #c7d9d6;
+  --lake-display: "Songti SC", "Noto Serif SC", "STSong", SimSun, serif;
+}
+
+.student-home-hero {
+  display: grid;
+  align-items: center;
+  min-height: clamp(290px, 28vw, 380px);
+  padding: clamp(28px, 4.25vw, 64px);
+  border: 1px solid var(--lake-line);
+  border-radius: 24px;
+  background:
+    linear-gradient(90deg, #e5f0e5 0%, #e5f0e5f5 30%, #e5f0e5bf 42%, #e5f0e521 62%, transparent 75%),
+    url("/media/lightscape.webp") center 82% / cover no-repeat;
+}
+
+.student-home-intro {
+  max-width: min(54%, 450px);
+}
+
+.student-home-intro h1 {
+  margin: 0 0 14px;
+  color: var(--lake-ink);
+  font: 700 clamp(2.45rem, 4.45vw, 4.25rem)/1.13 var(--lake-display);
+  letter-spacing: -.045em;
+}
+
+.student-home-intro p {
+  margin: 0;
+  color: #2c514a;
+  line-height: 1.7;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 23px;
+}
+
+.hero-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 44px;
+  padding: 7px 16px;
+  border: 1px solid var(--lake-action);
+  border-radius: 12px;
+  font-size: .94rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.hero-actions .zj-journal-link {
+  color: #fff;
+  background: var(--lake-action);
+}
+
+.hero-actions .zj-journal-link:hover {
+  background: var(--lake-action-hover);
+}
+
+.hero-actions .zj-plan-link {
+  color: var(--lake-action);
+  background: #f5fbf5b3;
+}
+
+.hero-actions .zj-plan-link:hover {
+  background: var(--lake-paper);
+}
+
+.student-today-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.workspace .student-today-grid > .card {
+  margin: 0;
+  border: 1px solid var(--lake-line);
+  border-radius: 20px;
+  background: var(--lake-paper);
+  box-shadow: var(--space-shadow);
+}
+
+.workspace .student-today-grid > .glance {
+  background: var(--lake-mist);
+}
+
+.student-today-grid h2 {
+  color: var(--lake-ink);
+  font: 700 clamp(1.27rem, 1.8vw, 1.65rem)/1.35 var(--lake-display);
+}
+
+.student-today-grid .glance li {
+  border-bottom: 1px solid var(--lake-line);
+  padding-block: 7px;
+}
+
+.student-today-grid .glance li:last-child {
+  border: 0;
+}
+
+.student-today-grid .glance > p {
+  margin: 12px 0 6px;
+}
+
+.student-today .class-invite-link {
+  margin: 16px 0 0;
+}
+
+.student-journal-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--lake-action);
+  font-weight: 650;
+  text-underline-offset: 4px;
+}
+
+.zj-entry-preview span {
+  display: inline-block;
+  margin: 0 5px 4px 0;
+  padding: 2px 9px;
+  border-radius: 16px;
+  background: #e4f0e8;
+  color: #315a4b;
+  font-size: .82rem;
+}
+
+.zj-entry-preview blockquote {
+  margin: 8px 0 4px;
+  padding: 3px 12px;
+  border-left: 3px solid #8bb49f;
+  white-space: pre-wrap;
+}
+
+.zj-quick {
+  margin-top: 10px;
+  border-top: 1px solid var(--lake-line);
+}
+
+.zj-quick > summary {
+  padding-block: 11px 3px;
+  color: #395c55;
+  font-size: .91rem;
+}
+
+.zj-quick > small {
+  display: block;
+  margin: .6rem 0;
+}
+
+@media (max-width: 760px) {
+  .student-home-hero {
+    min-height: 245px;
+    padding: 24px 20px;
+    border-radius: 20px;
+    background-position: center, 63% 66%;
+    background-image:
+      linear-gradient(90deg, #e5f0e5 0%, #e5f0e5f0 36%, #e5f0e5ba 56%, #e5f0e51a 100%),
+      url("/media/lightscape.webp");
+  }
+
+  .student-home-intro {
+    max-width: 260px;
+  }
+
+  .student-home-intro h1 {
+    font-size: clamp(2rem, 8.8vw, 2.7rem);
+  }
+
+  .student-home-intro p {
+    max-width: 18em;
+    font-size: .92rem;
+  }
+
+  .hero-actions {
+    margin-top: 17px;
+  }
+
+  .hero-actions a {
+    gap: 8px;
+    padding-inline: 12px;
+    font-size: .88rem;
+  }
+
+  .student-today-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    margin-top: 12px;
   }
 }

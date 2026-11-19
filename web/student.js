@@ -1,5 +1,4 @@
 const css = `
-.student-home-hero{min-height:clamp(260px,29vw,390px);display:flex;align-items:center;margin:0 0 20px;padding:clamp(22px,4vw,50px);border-radius:26px;border:1px solid #ffffffdf;isolation:isolate;overflow:hidden;position:relative;background:#d9ede0 url('/media/lightscape.webp') center 52% / cover no-repeat;box-shadow:0 15px 38px #5276741c}.student-home-hero:before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(96deg,#ecf9ecf5 4%,#f2f8eab8 35%,#dae9dc05 75%)}.student-home-hero>div{max-width:min(85%,445px)}.student-home-hero h1{font-family:'STIX Two Text','Songti SC',SimSun,serif;font-size:clamp(2.1rem,4.7vw,4.6rem);line-height:1.12;color:#163e38;margin:0 0 13px;font-weight:600;letter-spacing:-.045em}.student-home-hero .eyebrow{font-size:.78rem;letter-spacing:.12em;color:#40665a;margin-bottom:10px}.student-home-hero p{color:#334f46}.zj-journal-link{display:inline-flex;align-items:center;justify-content:space-between;gap:22px;border-radius:99px;background:#205447;color:#fff!important;padding:8px 16px;text-decoration:none;font-weight:650;font-size:.92rem}.zj-journal-link:hover{background:#306b5b}.zj-entry-preview span{display:inline-block;background:#e7efda;border:1px solid #d4e0cd;color:#385547;border-radius:16px;margin:0 4px 3px 0;padding:2px 9px;font-size:.8rem}.zj-entry-preview blockquote{border-left:2px solid #a2c3ad;padding:3px 12px;margin:9px 0 15px;white-space:pre-wrap}.zj-quick{margin-top:14px;padding-top:10px;border-top:1px solid #d9e2db}.zj-quick>summary{font-size:.87rem;color:#4b675d}.zj-quick>small{display:block;margin:.6rem 0}
 
 .student-module {position:relative; padding-bottom:80px}
 .shell .student-tabs {display:flex; flex-wrap:wrap; gap:6px; margin:0 0 20px}
@@ -71,7 +70,25 @@ export async function renderStudent(root,ctx) {
     const story=last?.story||last?.caption||'';
     const status=last?`<div class="zj-entry-preview">${last.words.map(w=>`<span>${esc(w)}</span>`).join('')}<blockquote>${story?esc(story.slice(0,110))+(story.length>110?'…':''):'留下一张照片，也是一种记录。'}</blockquote></div>`:empty('一张照片、几个词，或一段还没想清楚的话，都能成为第一篇手记。');
     const quick=`<details class="zj-quick"><summary>身体线索与快速自评</summary>${evidence()}${snapshot?`<div class="scores">${Object.entries(labels).map(([k,v])=>`<div><small>${v}</small><strong>${snapshot[k]}<small> / 5</small></strong></div>`).join('')}</div><p>${tag('上次自评 · '+dateText(snapshot.at))} ${esc(snapshot.note)}</p>${button('更正自评','correct','',`data-id="${snapshot.id}"`)} ${!cardFor('snapshot',snapshot.id)?button('自评打卡领卡','check','',`data-source="snapshot" data-id="${snapshot.id}"`):''}`:''} ${button('新增快速自评','snapshot')}</details>`;
-    return `<section class="student-home-hero"><div><h1>收下今天的<br>一个瞬间。</h1><p>用镜头、文字和心情词，写一页属于自己的手记。</p><div class="hero-actions"><a class="zj-journal-link" href="#journal">照一照 · 写手记 <span aria-hidden="true">↗</span></a><a class="zj-plan-link" href="#plan">一日规划 <span aria-hidden="true">→</span></a></div></div></section>${classCare.invitations.length?`<a class="class-invite-link" href="#care">你有 ${classCare.invitations.length} 条班级邀请 <strong>查看邀请 →</strong></a>`:''}<div class="student-grid">${block(last?'最近的心情手记':'心情手记',`${status}<a href="#journal">打开我的手记 →</a>${quick}`)}${dayAtGlance()}</div>${active()?nextAction():''}${campus.hints.length?block('校园提醒',campus.hints.map(h=>`<p>${esc(h)}</p>`).join('')+'<a href="#campus">打开校园日程 →</a>'):''}`;
+    return `<div class="student-today">
+      <section class="student-home-hero" aria-labelledby="student-today-heading">
+        <div class="student-home-intro">
+          <h1 id="student-today-heading">收下今天的<br>一个瞬间。</h1>
+          <p>用文字、照片或几个词，记下现在的感受。</p>
+          <div class="hero-actions">
+            <a class="zj-journal-link" href="#journal">写手记 <span aria-hidden="true">→</span></a>
+            <a class="zj-plan-link" href="#plan">一日规划</a>
+          </div>
+        </div>
+      </section>
+      ${classCare.invitations.length?`<a class="class-invite-link" href="#care">你有 ${classCare.invitations.length} 条班级邀请 <strong>查看邀请 →</strong></a>`:''}
+      <div class="student-today-grid">
+        ${block(last?'最近的心情手记':'心情手记',`${status}<a class="student-journal-history" href="#journal">打开我的手记 <span aria-hidden="true">→</span></a>${quick}`)}
+        ${dayAtGlance()}
+      </div>
+      ${active()?nextAction():''}
+      ${campus.hints.length?block('校园提醒',campus.hints.map(h=>`<p>${esc(h)}</p>`).join('')+'<a href="#campus">打开校园日程 →</a>'):''}
+    </div>`;
   }
   function actions(){
     return `<h1>小行动</h1>${nextAction()}${block('换一种开始方式', Object.entries(state.catalog).map(([k,c])=>`<div class="student-row"><div><strong>${esc(c.title)}</strong><small>${c.seconds/60} 分钟 · ${esc(c.description)}</small></div>${button('选择','choose','',`data-kind="${k}"`)}</div>`).join(''))}${block('行动记录',state.actions.filter(a=>a.status!=='active').map(a=>`<div class="student-row"><div><strong>${esc(state.catalog[a.kind].title)}</strong><small>${dateText(a.at)} · ${a.status==='done'?esc(a.feedback):'已退出'}</small></div>${a.status==='done'&&!cardFor('action',a.id)?button('打卡领卡','check','',`data-source="action" data-id="${a.id}"`):''}</div>`).join('')||empty('完成的小行动会留在这里。'))}`;
